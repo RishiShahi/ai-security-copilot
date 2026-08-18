@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 
+from app.database import Base, engine
+from app.models.security_event import SecurityEvent
 from app.api.routes.health import router as health_router
 from app.api.routes.security_events import router as security_events_router
 from app.core.config import settings
 
-
+Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,

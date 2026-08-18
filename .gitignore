@@ -34,3 +34,5 @@ __pycache__/
 # Virtual environments
 venv/
 .venv/
+
+security_events.db
