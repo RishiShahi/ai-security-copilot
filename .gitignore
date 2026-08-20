@@ -23,6 +23,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# SQLite database
+*.db
+
 # Python
 *.pyc
 __pycache__/

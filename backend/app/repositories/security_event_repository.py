@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
 
 from app.models.security_event import SecurityEvent
 
@@ -30,4 +31,32 @@ def get_event_by_id(
         db.query(SecurityEvent)
         .filter(SecurityEvent.id == event_id)
         .first()
+    )
+
+def count_events_by_source_ip(
+    db: Session,
+    source_ip: str,
+) -> int:
+    return (
+        db.query(SecurityEvent)
+        .filter(SecurityEvent.source_ip == source_ip)
+        .count()
+    )
+
+def count_recent_events_by_source_ip(
+    db: Session,
+    source_ip: str,
+    timestamp: datetime,
+    minutes: int = 10,
+) -> int:
+    start_time = timestamp - timedelta(minutes=minutes)
+
+    return (
+        db.query(SecurityEvent)
+        .filter(
+            SecurityEvent.source_ip == source_ip,
+            SecurityEvent.timestamp >= start_time,
+            SecurityEvent.timestamp <= timestamp,
+        )
+        .count()
     )

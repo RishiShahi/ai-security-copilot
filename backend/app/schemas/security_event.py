@@ -26,3 +26,9 @@ class SecurityEventResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+class SecurityAnalysisResponse(BaseModel):
+    event_id: int
+    risk_score: int
+    risk_level: str
+    threat_type: str
+    recommendation: str
