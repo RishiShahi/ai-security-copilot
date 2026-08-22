@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 
 def create_test_event():
@@ -114,3 +114,98 @@ def test_analyze_nonexistent_security_event(client):
     data = response.json()
 
     assert data["detail"] == "Security event not found"
+
+
+def test_analyze_security_event_with_repeated_activity(client):
+
+    base_time = datetime(
+        2026,
+        8,
+        22,
+        12,
+        0,
+        tzinfo=UTC,
+    )
+
+    for minutes_ago in [9, 8, 7, 6, 5, 4]:
+        event = create_test_event()
+        event["timestamp"] = (
+            base_time - timedelta(minutes=minutes_ago)
+        ).isoformat()
+
+        client.post(
+            "/api/security/events",
+            json=event,
+        )
+
+    current_event = create_test_event()
+    current_event["timestamp"] = base_time.isoformat()
+
+    create_response = client.post(
+        "/api/security/events",
+        json=current_event,
+    )
+
+    event_id = create_response.json()["id"]
+
+    response = client.get(
+        f"/api/security/events/{event_id}/analysis",
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["event_id"] == event_id
+    assert data["risk_score"] == 100
+    assert data["risk_level"] == "critical"
+
+def test_analyze_security_event_with_multiple_usernames(client):
+    base_time = datetime(
+        2026,
+        8,
+        22,
+        12,
+        0,
+        tzinfo=UTC,
+    )
+
+    usernames = [
+        "admin",
+        "john",
+        "alice",
+        "bob",
+    ]
+
+    for index, username in enumerate(usernames):
+        event = create_test_event()
+        event["username"] = username
+        event["timestamp"] = (
+            base_time - timedelta(minutes=index + 1)
+        ).isoformat()
+
+        client.post(
+            "/api/security/events",
+            json=event,
+        )
+
+    current_event = create_test_event()
+    current_event["timestamp"] = base_time.isoformat()
+
+    create_response = client.post(
+        "/api/security/events",
+        json=current_event,
+    )
+
+    event_id = create_response.json()["id"]
+
+    response = client.get(
+        f"/api/security/events/{event_id}/analysis",
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["event_id"] == event_id
+    assert data["risk_level"] == "critical"

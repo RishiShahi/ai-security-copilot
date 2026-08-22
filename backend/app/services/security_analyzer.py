@@ -1,4 +1,5 @@
 from app.models.security_event import SecurityEvent
+from app.services.event_context import EventContext
 
 
 SEVERITY_SCORES = {
@@ -57,10 +58,34 @@ RECOMMENDATIONS = {
 }
 
 
+def calculate_behavioral_modifier(
+    context: EventContext,
+) -> int:
+    """
+    Calculate additional risk based on behavioral patterns
+    observed across related events.
+    """
+
+    modifier = 0
+
+    if context.failed_login_count >= 6:
+        modifier += 15
+    elif context.failed_login_count >= 4:
+        modifier += 10
+    elif context.failed_login_count >= 2:
+        modifier += 5
+
+    if context.unique_username_count >= 4:
+        modifier += 10
+    elif context.unique_username_count >= 2:
+        modifier += 5
+
+    return modifier
+
+
 def calculate_risk_score(
     event: SecurityEvent,
-    event_count: int,
-    recent_event_count: int,
+    context: EventContext,
 ) -> int:
     """
     Calculate risk score using severity, event type,
@@ -85,11 +110,15 @@ def calculate_risk_score(
     )
 
     historical_modifier = calculate_historical_modifier(
-        event_count
+        context.event_count
     )
 
     recent_activity_modifier = calculate_recent_activity_modifier(
-        recent_event_count
+        context.recent_event_count
+    )
+
+    behavioral_modifier = calculate_behavioral_modifier(
+        context=context,
     )
 
     risk_score = (
@@ -98,6 +127,7 @@ def calculate_risk_score(
         + contextual_modifier
         + historical_modifier
         + recent_activity_modifier
+        + behavioral_modifier
     )
 
     return min(risk_score, 100)
@@ -234,8 +264,7 @@ def calculate_recent_activity_modifier(
 
 def analyze_security_event(
     event: SecurityEvent,
-    event_count: int,
-    recent_event_count: int,
+    context: EventContext,
 ) -> dict:
     """
     Perform complete security analysis for an event.
@@ -243,8 +272,7 @@ def analyze_security_event(
 
     risk_score = calculate_risk_score(
         event=event,
-        event_count=event_count,
-        recent_event_count=recent_event_count,
+        context=context,
     )
 
     risk_level = determine_risk_level(

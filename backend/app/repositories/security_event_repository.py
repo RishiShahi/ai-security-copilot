@@ -33,15 +33,6 @@ def get_event_by_id(
         .first()
     )
 
-def count_events_by_source_ip(
-    db: Session,
-    source_ip: str,
-) -> int:
-    return (
-        db.query(SecurityEvent)
-        .filter(SecurityEvent.source_ip == source_ip)
-        .count()
-    )
 
 def count_recent_events_by_source_ip(
     db: Session,
@@ -56,7 +47,18 @@ def count_recent_events_by_source_ip(
         .filter(
             SecurityEvent.source_ip == source_ip,
             SecurityEvent.timestamp >= start_time,
-            SecurityEvent.timestamp <= timestamp,
+            SecurityEvent.timestamp < timestamp,
         )
         .count()
+    )
+
+def get_events_by_source_ip(
+    db: Session,
+    source_ip: str,
+) -> list[SecurityEvent]:
+    return (
+        db.query(SecurityEvent)
+        .filter(SecurityEvent.source_ip == source_ip)
+        .order_by(SecurityEvent.timestamp.desc())
+        .all()
     )

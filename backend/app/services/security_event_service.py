@@ -2,11 +2,14 @@ from sqlalchemy.orm import Session
 
 from app.models.security_event import SecurityEvent
 from app.repositories.security_event_repository import (
-    count_events_by_source_ip,
+    get_events_by_source_ip,
     count_recent_events_by_source_ip,
     create_event,
     get_events,
     get_event_by_id,
+)
+from app.services.event_context_builder import (
+    build_event_context,
 )
 from app.schemas.security_event import SecurityEventCreate
 from app.services.security_analyzer import analyze_security_event
@@ -55,11 +58,12 @@ def analyze_security_event_by_id(
     if event is None:
         return None
 
-    event_count = 0
+    related_events = []
+
     recent_event_count = 0
 
     if event.source_ip:
-        event_count = count_events_by_source_ip(
+        related_events = get_events_by_source_ip(
             db=db,
             source_ip=event.source_ip,
         )
@@ -70,8 +74,13 @@ def analyze_security_event_by_id(
             timestamp=event.timestamp,
         )
 
-    return analyze_security_event(
-        event=event,
-        event_count=event_count,
-        recent_event_count=recent_event_count,
-    )
+        context = build_event_context(
+            event=event,
+            related_events=related_events,
+            recent_event_count=recent_event_count,
+        )
+
+        return analyze_security_event(
+            event=event,
+            context=context,
+        )
