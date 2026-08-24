@@ -103,6 +103,33 @@ def test_analyze_security_event(client):
     assert data["threat_type"] == "authentication_attack"
     assert "authentication failures" in data["recommendation"]
 
+    assert "risk_factors" in data
+    assert isinstance(data["risk_factors"], list)
+
+    factor_names = {
+        factor["factor"]
+        for factor in data["risk_factors"]
+    }
+
+    assert factor_names == {
+        "high_severity",
+        "failed_login",
+        "privileged_account",
+        "external_source",
+    }
+
+    factor_impacts = {
+        factor["factor"]: factor["impact"]
+        for factor in data["risk_factors"]
+    }
+
+    assert factor_impacts == {
+        "high_severity": 70,
+        "failed_login": 10,
+        "privileged_account": 10,
+        "external_source": 5,
+    }
+
 
 def test_analyze_nonexistent_security_event(client):
     response = client.get(
@@ -160,6 +187,14 @@ def test_analyze_security_event_with_repeated_activity(client):
     assert data["risk_score"] == 100
     assert data["risk_level"] == "critical"
 
+    factor_names = {
+        factor["factor"]
+        for factor in data["risk_factors"]
+    }
+
+    assert "historical_activity" in factor_names
+    assert "recent_activity" in factor_names
+
 def test_analyze_security_event_with_multiple_usernames(client):
     base_time = datetime(
         2026,
@@ -209,3 +244,10 @@ def test_analyze_security_event_with_multiple_usernames(client):
 
     assert data["event_id"] == event_id
     assert data["risk_level"] == "critical"
+
+    factor_names = {
+        factor["factor"]
+        for factor in data["risk_factors"]
+    }
+
+    assert "multiple_usernames" in factor_names

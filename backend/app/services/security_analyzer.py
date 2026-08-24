@@ -1,5 +1,6 @@
 from app.models.security_event import SecurityEvent
 from app.services.event_context import EventContext
+from app.schemas.security_event import RiskFactor
 
 
 SEVERITY_SCORES = {
@@ -57,119 +58,6 @@ RECOMMENDATIONS = {
     ),
 }
 
-
-def calculate_behavioral_modifier(
-    context: EventContext,
-) -> int:
-    """
-    Calculate additional risk based on behavioral patterns
-    observed across related events.
-    """
-
-    modifier = 0
-
-    if context.failed_login_count >= 6:
-        modifier += 15
-    elif context.failed_login_count >= 4:
-        modifier += 10
-    elif context.failed_login_count >= 2:
-        modifier += 5
-
-    if context.unique_username_count >= 4:
-        modifier += 10
-    elif context.unique_username_count >= 2:
-        modifier += 5
-
-    return modifier
-
-
-def calculate_risk_score(
-    event: SecurityEvent,
-    context: EventContext,
-) -> int:
-    """
-    Calculate risk score using severity, event type,
-    contextual signals, and historical activity.
-    """
-
-    severity = event.severity.lower()
-    event_type = event.event_type.lower()
-
-    base_score = SEVERITY_SCORES.get(
-        severity,
-        0,
-    )
-
-    event_modifier = EVENT_RISK_MODIFIERS.get(
-        event_type,
-        0,
-    )
-
-    contextual_modifier = calculate_contextual_modifier(
-        event
-    )
-
-    historical_modifier = calculate_historical_modifier(
-        context.event_count
-    )
-
-    recent_activity_modifier = calculate_recent_activity_modifier(
-        context.recent_event_count
-    )
-
-    behavioral_modifier = calculate_behavioral_modifier(
-        context=context,
-    )
-
-    risk_score = (
-        base_score
-        + event_modifier
-        + contextual_modifier
-        + historical_modifier
-        + recent_activity_modifier
-        + behavioral_modifier
-    )
-
-    return min(risk_score, 100)
-
-
-def determine_risk_level(risk_score: int) -> str:
-    """
-    Convert a numeric risk score into a risk level.
-    """
-
-    if risk_score <= 25:
-        return "low"
-
-    if risk_score <= 50:
-        return "medium"
-
-    if risk_score <= 75:
-        return "high"
-
-    return "critical"
-
-
-def classify_threat(event: SecurityEvent) -> str:
-    """
-    Classify the security event into a known threat category.
-    """
-
-    event_type = event.event_type.lower()
-
-    return THREAT_TYPES.get(event_type, "unknown")
-
-
-def get_recommendation(threat_type: str) -> str:
-    """
-    Return a security recommendation based on the threat type.
-    """
-
-    return RECOMMENDATIONS.get(
-        threat_type,
-        RECOMMENDATIONS["unknown"],
-    )
-
 def is_privileged_user(event: SecurityEvent) -> bool:
     """
     Check whether the event involves a privileged account.
@@ -211,20 +99,94 @@ def is_external_ip(event: SecurityEvent) -> bool:
 
     return True
 
-def calculate_contextual_modifier(event: SecurityEvent) -> int:
+def get_severity_risk_factor(
+    event: SecurityEvent,
+) -> RiskFactor | None:
+
+    severity = event.severity.lower()
+
+    impact = SEVERITY_SCORES.get(
+        severity,
+        0,
+    )
+
+    if impact == 0:
+        return None
+
+    return RiskFactor(
+        factor=f"{severity}_severity",
+        impact=impact,
+        description=(
+            f"The event has a {severity} severity level."
+        ),
+    )
+
+
+def get_event_type_risk_factor(
+    event: SecurityEvent,
+) -> RiskFactor | None:
     """
-    Calculate additional risk based on event context.
+    Create an explainable risk factor for the event type.
     """
 
-    modifier = 0
+    event_type = event.event_type.lower()
 
-    if is_privileged_user(event):
-        modifier += 10
+    impact = EVENT_RISK_MODIFIERS.get(
+        event_type,
+        0,
+    )
 
-    if is_external_ip(event):
-        modifier += 5
+    if impact == 0:
+        return None
 
-    return modifier
+    return RiskFactor(
+        factor=event_type,
+        impact=impact,
+        description=(
+            f"The event type '{event_type}' contributes "
+            f"additional risk."
+        ),
+    )
+
+
+def get_privileged_account_risk_factor(
+    event: SecurityEvent,
+) -> RiskFactor | None:
+    """
+    Create an explainable risk factor when the event
+    involves a privileged account.
+    """
+
+    if not is_privileged_user(event):
+        return None
+
+    return RiskFactor(
+        factor="privileged_account",
+        impact=10,
+        description=(
+            "The event involves a privileged account."
+        ),
+    )
+
+def get_external_ip_risk_factor(
+    event: SecurityEvent,
+) -> RiskFactor | None:
+    """
+    Create an explainable risk factor when the event
+    originates from an external IP address.
+    """
+
+    if not is_external_ip(event):
+        return None
+
+    return RiskFactor(
+        factor="external_source",
+        impact=5,
+        description=(
+            "The event originated from an external IP address."
+        ),
+    )
+
 
 def calculate_historical_modifier(event_count: int) -> int:
     """
@@ -262,6 +224,222 @@ def calculate_recent_activity_modifier(
 
     return 0
 
+def get_historical_risk_factor(
+    context: EventContext,
+) -> RiskFactor | None:
+    """
+    Create an explainable risk factor for repeated
+    historical activity from the same source.
+    """
+
+    impact = calculate_historical_modifier(
+        context.event_count
+    )
+
+    if impact == 0:
+        return None
+
+    return RiskFactor(
+        factor="historical_activity",
+        impact=impact,
+        description=(
+            f"The source has generated "
+            f"{context.event_count} related events."
+        ),
+    )
+
+
+def get_recent_activity_risk_factor(
+    context: EventContext,
+) -> RiskFactor | None:
+    """
+    Create an explainable risk factor for recent
+    activity from the same source.
+    """
+
+    impact = calculate_recent_activity_modifier(
+        context.recent_event_count
+    )
+
+    if impact == 0:
+        return None
+
+    return RiskFactor(
+        factor="recent_activity",
+        impact=impact,
+        description=(
+            f"The source has generated "
+            f"{context.recent_event_count} related events "
+            f"within the recent activity window."
+        ),
+    )
+
+def get_failed_login_risk_factor(
+    context: EventContext,
+) -> RiskFactor | None:
+    """
+    Create an explainable risk factor for repeated
+    failed-login activity.
+    """
+
+    if context.failed_login_count >= 6:
+        impact = 15
+    elif context.failed_login_count >= 4:
+        impact = 10
+    elif context.failed_login_count >= 2:
+        impact = 5
+    else:
+        return None
+
+    return RiskFactor(
+        factor="failed_login_activity",
+        impact=impact,
+        description=(
+            f"The source has generated "
+            f"{context.failed_login_count} failed-login events."
+        ),
+    )
+
+
+def get_multiple_usernames_risk_factor(
+    context: EventContext,
+) -> RiskFactor | None:
+    """
+    Create an explainable risk factor when activity
+    targets multiple usernames.
+    """
+
+    if context.unique_username_count >= 4:
+        impact = 10
+    elif context.unique_username_count >= 2:
+        impact = 5
+    else:
+        return None
+
+    return RiskFactor(
+        factor="multiple_usernames",
+        impact=impact,
+        description=(
+            f"The source has targeted "
+            f"{context.unique_username_count} unique usernames."
+        ),
+    )
+
+
+
+def determine_risk_level(risk_score: int) -> str:
+
+    if risk_score <= 25:
+        return "low"
+
+    if risk_score <= 50:
+        return "medium"
+
+    if risk_score <= 75:
+        return "high"
+
+    return "critical"
+
+
+def classify_threat(event: SecurityEvent) -> str:
+    """
+    Classify the security event into a known threat category.
+    """
+
+    event_type = event.event_type.lower()
+
+    return THREAT_TYPES.get(event_type, "unknown")
+
+
+def get_recommendation(threat_type: str) -> str:
+    """
+    Return a security recommendation based on the threat type.
+    """
+
+    return RECOMMENDATIONS.get(
+        threat_type,
+        RECOMMENDATIONS["unknown"],
+    )
+
+def build_risk_factors(
+    event: SecurityEvent,
+    context: EventContext,
+) -> list[RiskFactor]:
+    """
+    Build all explainable risk factors for a security event.
+    """
+
+    factors: list[RiskFactor] = []
+
+    severity_factor = get_severity_risk_factor(event)
+
+    if severity_factor:
+        factors.append(severity_factor)
+
+    event_type_factor = get_event_type_risk_factor(event)
+
+    if event_type_factor:
+        factors.append(event_type_factor)
+
+    privileged_factor = get_privileged_account_risk_factor(
+        event
+    )
+
+    if privileged_factor:
+        factors.append(privileged_factor)
+
+    external_ip_factor = get_external_ip_risk_factor(
+        event
+    )
+
+    if external_ip_factor:
+        factors.append(external_ip_factor)
+
+    historical_factor = get_historical_risk_factor(
+        context
+    )
+
+    if historical_factor:
+        factors.append(historical_factor)
+
+    recent_activity_factor = get_recent_activity_risk_factor(
+        context
+    )
+
+    if recent_activity_factor:
+        factors.append(recent_activity_factor)
+
+    failed_login_factor = get_failed_login_risk_factor(
+        context
+    )
+
+    if failed_login_factor:
+        factors.append(failed_login_factor)
+
+    multiple_usernames_factor = get_multiple_usernames_risk_factor(
+        context
+    )
+
+    if multiple_usernames_factor:
+        factors.append(multiple_usernames_factor)
+
+    return factors
+
+
+def calculate_risk_score(
+    factors: list[RiskFactor],
+) -> int:
+    """
+    Calculate the final risk score from risk factors.
+    """
+
+    risk_score = sum(
+        factor.impact
+        for factor in factors
+    )
+
+    return min(risk_score, 100)
+
 def analyze_security_event(
     event: SecurityEvent,
     context: EventContext,
@@ -270,9 +448,13 @@ def analyze_security_event(
     Perform complete security analysis for an event.
     """
 
-    risk_score = calculate_risk_score(
+    risk_factors = build_risk_factors(
         event=event,
         context=context,
+    )
+
+    risk_score = calculate_risk_score(
+        factors=risk_factors,
     )
 
     risk_level = determine_risk_level(
@@ -290,5 +472,6 @@ def analyze_security_event(
         "risk_score": risk_score,
         "risk_level": risk_level,
         "threat_type": threat_type,
+        "risk_factors": risk_factors,
         "recommendation": recommendation,
     }

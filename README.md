@@ -8,7 +8,7 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 
 ## Project Status
 
-### Week 1 — Security Analysis Foundation ✅
+### Weeks 1–2 — Security Analysis Foundation ✅
 
 - FastAPI backend
 - Security event ingestion
@@ -22,9 +22,12 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Security recommendations
 - Historical activity analysis
 - Recent activity analysis
+- Context-aware risk analysis
+- Behavioral analysis
+- Explainable risk factors
 - Unit tests
 - API integration tests
-- 14 automated tests passing
+- 32 automated tests passing
 
 ---
 
@@ -44,11 +47,14 @@ AI Security Copilot aims to assist analysts by:
 
 1. Ingesting security events
 2. Persisting events for historical analysis
-3. Calculating a risk score
-4. Determining the risk level
-5. Identifying the likely threat type
-6. Providing an initial recommendation
-7. Eventually using AI to explain, correlate, and investigate security incidents
+3. Building context from related security events
+4. Identifying behavioral patterns across events
+5. Calculating a deterministic risk score
+6. Explaining the risk score through structured risk factors
+7. Determining the risk level
+8. Identifying the likely threat type
+9. Providing an initial recommendation
+10. Eventually using AI to explain, correlate, and investigate security incidents
 
 ---
 
@@ -57,7 +63,7 @@ AI Security Copilot aims to assist analysts by:
 The backend follows a layered architecture.
 
 ````text
-                         Client
+                                                Client
                            │
                            ▼
                     FastAPI Router
@@ -70,27 +76,39 @@ The backend follows a layered architecture.
               ▼                         ▼
        Service Layer           Security Analyzer
               │                         │
-              ▼                 ┌───────┼────────┐
-       Repository Layer         │       │        │
-              │              Severity Context Activity
-              │                 │       │        │
-              │                 └───────┼────────┘
+              ▼                         ▼
+       Repository Layer         Context Builder
               │                         │
-              │                         ▼
-              │                    Risk Score
+              ▼                         ▼
+          SQLAlchemy             EventContext
               │                         │
-              │                ┌────────┴────────┐
-              │                ▼                 ▼
-              │           Risk Level       Threat Type
-              │                                  │
-              │                                  ▼
-              │                           Recommendation
-              │
-              ▼
-          SQLAlchemy
-              │
-              ▼
-            SQLite
+              ▼                         ▼
+            SQLite            Risk Factor Engine
+                                      │
+                         ┌────────────┼────────────┐
+                         ▼            ▼            ▼
+                     Severity     Historical   Behavioral
+                      Factors      Activity     Activity
+                         │            │            │
+                         └────────────┼────────────┘
+                                      ▼
+                                RiskFactor[]
+                                      │
+                         ┌────────────┴────────────┐
+                         ▼                         ▼
+                  Risk Score                 Explanations
+                         │                         │
+                         ▼                         │
+                    Risk Level                    │
+                         │                         │
+                         ├── Threat Type           │
+                         │                         │
+                         └── Recommendation        │
+                                      │            │
+                                      └──────┬─────┘
+                                             ▼
+                                      Analysis Response
+```
 
 # Tech Stack
 
@@ -133,12 +151,43 @@ The backend follows a layered architecture.
   "risk_score": 95,
   "risk_level": "critical",
   "threat_type": "authentication_attack",
-  "recommendation": "Investigate repeated authentication failures and verify whether the source IP is suspicious."
+  "recommendation": "Investigate repeated authentication failures and verify whether the source IP is suspicious.",
+  "risk_factors": [
+    {
+      "factor": "high_severity",
+      "impact": 70,
+      "description": "The event has a high severity level."
+    },
+    {
+      "factor": "failed_login",
+      "impact": 10,
+      "description": "The event type 'failed_login' contributes additional risk."
+    },
+    {
+      "factor": "privileged_account",
+      "impact": 10,
+      "description": "The event involves a privileged account."
+    },
+    {
+      "factor": "external_source",
+      "impact": 5,
+      "description": "The event originated from an external IP address."
+    }
+  ]
 }
+```
 
 ## Risk Scoring
 
 The current risk engine uses deterministic rules to calculate a security-event risk score.
+
+The analyzer first generates structured risk factors from the event and its surrounding context. Each risk factor contains:
+
+- A factor name
+- A risk impact
+- A human-readable explanation
+
+The final score is calculated by summing the impacts of the generated risk factors and is capped at 100.
 
 ## Base Severity
 
@@ -159,6 +208,25 @@ The current risk engine uses deterministic rules to calculate a security-event r
 | malware_detected    | +15      |
 | unauthorized_access | +20      |
 
+## Explainable Risk Factors
+
+The analyzer generates structured risk factors that explain why an event received its risk score.
+
+Current risk factors include:
+
+| Risk Factor | Description |
+| ----------- | ----------- |
+| `high_severity` | Risk contribution from event severity |
+| `failed_login` | Risk contribution from the event type |
+| `privileged_account` | Event involves a privileged account |
+| `external_source` | Event originated from an external IP |
+| `historical_activity` | Repeated activity from the same source |
+| `recent_activity` | High activity within a recent time window |
+| `failed_login_activity` | Repeated failed-login behavior |
+| `multiple_usernames` | Source has targeted multiple usernames |
+
+Each factor contributes an explicit risk impact and contains a human-readable explanation.
+
 ## Recent Activity
 
 | Recent Events | Modifier |
@@ -168,11 +236,26 @@ The current risk engine uses deterministic rules to calculate a security-event r
 | 4–5           | +15      |
 | 6+            | +20      |
 
+## Behavioral Analysis
+
+The analyzer evaluates related events from the same source to identify suspicious behavioral patterns.
+
+Current behavioral signals include:
+
+- Repeated failed-login activity
+- Multiple targeted usernames
+- Repeated historical activity
+- High recent activity
+
+These signals allow the analyzer to increase risk when an isolated event becomes more suspicious when viewed in context.
+
 ```markdown
 The final risk score is capped at 100:
+```
 
 ```python
 risk_score = min(calculated_score, 100)
+```
 
 # Testing
 
@@ -182,8 +265,9 @@ From the `backend` directory:
 
 ```bash
 pytest
+```
 
-The project currently contains 14 automated tests.
+The project currently contains 32 automated tests.
 
 ## Unit Tests
 
@@ -191,13 +275,17 @@ The project currently contains 14 automated tests.
 
 Tests the deterministic risk-analysis logic including:
 
-- Severity scoring
-- Event-type modifiers
-- Privileged users
+- Severity risk factors
+- Event-type risk factors
+- Privileged-account risk factors
 - External IP detection
 - Private IP handling
-- Historical activity
-- Recent activity
+- Historical activity risk factors
+- Recent activity risk factors
+- Failed-login behavioral analysis
+- Multiple-username behavioral analysis
+- Risk-factor aggregation
+- Risk-score calculation
 - Risk-score capping
 
 ## API Integration Tests
@@ -211,13 +299,22 @@ HTTP Request
      ↓
 FastAPI Router
      ↓
-Service
+Security Service
      ↓
 Repository
      ↓
 SQLite
      ↓
+EventContext
+     ↓
+Security Analyzer
+     ↓
+Risk Factors
+     ↓
+Risk Score + Explanation
+     ↓
 HTTP Response
+```
 
 # Running Locally
 
@@ -226,15 +323,18 @@ HTTP Response
 ```bash
 git clone https://github.com/RishiShahi/ai-security-copilot.git
 cd ai-security-copilot
+```
 
 
 And:
 
 ```markdown
 ## 2. Navigate to backend
+```
 
 ```bash
 cd backend
+```
 
 ## 3. Create Virtual Environment
 
@@ -256,13 +356,15 @@ The API will be available at:
 
 ```text
 http://127.0.0.1:8000
+```
 
 Swagger documentation:
 
 ```text
 http://127.0.0.1:8000/docs
+```
 
-```markdown
+
 # Project Structure
 
 ```text
