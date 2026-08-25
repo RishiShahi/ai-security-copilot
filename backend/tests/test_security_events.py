@@ -1,13 +1,15 @@
 from datetime import UTC, datetime, timedelta
 
 
-def create_test_event():
+def create_test_event(
+    source_ip: str | None = "185.23.45.10",
+):
     return {
         "timestamp": datetime.now(UTC).isoformat(),
         "source": "firewall",
         "event_type": "failed_login",
         "severity": "high",
-        "source_ip": "185.23.45.10",
+        "source_ip": source_ip,
         "username": "admin",
         "message": "Failed login attempt",
         "description": "Authentication failure from external source",
@@ -130,6 +132,39 @@ def test_analyze_security_event(client):
         "external_source": 5,
     }
 
+def test_analyze_security_event_without_source_ip(client):
+    event = create_test_event(source_ip=None)
+
+    create_response = client.post(
+        "/api/security/events",
+        json=event,
+    )
+
+    event_id = create_response.json()["id"]
+
+    response = client.get(
+        f"/api/security/events/{event_id}/analysis",
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["event_id"] == event_id
+    assert data["risk_score"] == 90
+    assert data["risk_level"] == "critical"
+    assert data["threat_type"] == "authentication_attack"
+
+    factor_names = {
+        factor["factor"]
+        for factor in data["risk_factors"]
+    }
+
+    assert factor_names == {
+        "high_severity",
+        "failed_login",
+        "privileged_account",
+    }
 
 def test_analyze_nonexistent_security_event(client):
     response = client.get(

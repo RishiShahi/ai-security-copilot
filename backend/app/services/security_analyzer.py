@@ -1,6 +1,9 @@
 from app.models.security_event import SecurityEvent
 from app.services.event_context import EventContext
-from app.schemas.security_event import RiskFactor
+from app.schemas.security_event import (
+    RiskFactor,
+    SecurityAnalysisResponse,
+)
 
 
 SEVERITY_SCORES = {
@@ -443,7 +446,7 @@ def calculate_risk_score(
 def analyze_security_event(
     event: SecurityEvent,
     context: EventContext,
-) -> dict:
+) -> SecurityAnalysisResponse:
     """
     Perform complete security analysis for an event.
     """
@@ -467,11 +470,11 @@ def analyze_security_event(
         threat_type
     )
 
-    return {
-        "event_id": event.id,
-        "risk_score": risk_score,
-        "risk_level": risk_level,
-        "threat_type": threat_type,
-        "risk_factors": risk_factors,
-        "recommendation": recommendation,
-    }
+    return SecurityAnalysisResponse(
+        event_id=event.id,
+        risk_score=risk_score,
+        risk_level=risk_level,
+        threat_type=threat_type,
+        risk_factors=risk_factors,
+        recommendation=recommendation,
+    )

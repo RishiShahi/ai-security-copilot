@@ -11,7 +11,10 @@ from app.repositories.security_event_repository import (
 from app.services.event_context_builder import (
     build_event_context,
 )
-from app.schemas.security_event import SecurityEventCreate
+from app.schemas.security_event import (
+    SecurityAnalysisResponse,
+    SecurityEventCreate,
+)
 from app.services.security_analyzer import analyze_security_event
 
 
@@ -49,7 +52,7 @@ def get_security_event(
 def analyze_security_event_by_id(
     db: Session,
     event_id: int,
-) -> dict | None:
+) -> SecurityAnalysisResponse | None:
     event = get_event_by_id(
         db=db,
         event_id=event_id,
@@ -59,7 +62,6 @@ def analyze_security_event_by_id(
         return None
 
     related_events = []
-
     recent_event_count = 0
 
     if event.source_ip:
@@ -74,13 +76,13 @@ def analyze_security_event_by_id(
             timestamp=event.timestamp,
         )
 
-        context = build_event_context(
-            event=event,
-            related_events=related_events,
-            recent_event_count=recent_event_count,
-        )
+    context = build_event_context(
+        event=event,
+        related_events=related_events,
+        recent_event_count=recent_event_count,
+    )
 
-        return analyze_security_event(
-            event=event,
-            context=context,
-        )
+    return analyze_security_event(
+        event=event,
+        context=context,
+    )
