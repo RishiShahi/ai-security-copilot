@@ -290,7 +290,8 @@ def test_get_severity_risk_factor():
     assert factor.factor == "high_severity"
     assert factor.impact == 70
     assert factor.description == (
-        "The event has a high severity level."
+        "The event has a high severity level, indicating a significant "
+        "potential security impact."
     )
 
 
@@ -308,8 +309,8 @@ def test_get_event_type_risk_factor():
     assert factor.factor == "brute_force"
     assert factor.impact == 15
     assert factor.description == (
-        "The event type 'brute_force' contributes "
-        "additional risk."
+        "The event indicates brute-force activity, which may represent "
+        "repeated attempts to gain unauthorized access."
     )
 
 def test_get_privileged_account_risk_factor():
@@ -326,6 +327,10 @@ def test_get_privileged_account_risk_factor():
     assert factor is not None
     assert factor.factor == "privileged_account"
     assert factor.impact == 10
+    assert factor.description == (
+        "The event targets a privileged account, increasing the potential "
+        "impact of unauthorized access."
+    )
 
 def test_get_privileged_account_risk_factor_for_normal_user():
     event = SecurityEvent(
@@ -354,6 +359,10 @@ def test_get_external_ip_risk_factor():
     assert factor is not None
     assert factor.factor == "external_source"
     assert factor.impact == 5
+    assert factor.description == (
+        "The event originated from an external source, increasing exposure "
+        "to internet-based attacks."
+    )
 
 def test_get_external_ip_risk_factor_for_private_ip():
     event = SecurityEvent(
@@ -381,6 +390,10 @@ def test_get_historical_risk_factor():
     assert factor is not None
     assert factor.factor == "historical_activity"
     assert factor.impact == 10
+    assert factor.description == (
+        "The source has generated 5 related events, indicating repeated "
+        "activity from the same source."
+    )
 
 
 def test_get_recent_activity_risk_factor():
@@ -396,6 +409,10 @@ def test_get_recent_activity_risk_factor():
     assert factor is not None
     assert factor.factor == "recent_activity"
     assert factor.impact == 20
+    assert factor.description == (
+        "The source has generated 6 related events within the recent "
+        "activity window, indicating concentrated activity."
+    )
 
 def test_get_failed_login_risk_factor():
     context = EventContext(
@@ -410,6 +427,10 @@ def test_get_failed_login_risk_factor():
     assert factor is not None
     assert factor.factor == "failed_login_activity"
     assert factor.impact == 15
+    assert factor.description == (
+        "The source has generated 6 failed-login events, indicating "
+        "repeated authentication activity."
+    )
 
 
 def test_get_failed_login_risk_factor_with_low_activity():
@@ -437,6 +458,10 @@ def test_get_multiple_usernames_risk_factor():
     assert factor is not None
     assert factor.factor == "multiple_usernames"
     assert factor.impact == 10
+    assert factor.description == (
+        "The source has targeted 4 unique usernames, which may indicate "
+        "account enumeration or credential attacks."
+    )
 
 def test_build_risk_factors():
     event = SecurityEvent(
@@ -516,3 +541,91 @@ def test_calculate_risk_score_caps_at_100():
     score = calculate_risk_score(factors=factors)
 
     assert score == 100
+
+
+def test_historical_activity_thresholds():
+    assert get_historical_risk_factor(
+        create_test_context(event_count=1)
+    ) is None
+
+    factor = get_historical_risk_factor(
+        create_test_context(event_count=2)
+    )
+    assert factor is not None
+    assert factor.impact == 5
+
+    factor = get_historical_risk_factor(
+        create_test_context(event_count=4)
+    )
+    assert factor is not None
+    assert factor.impact == 10
+
+    factor = get_historical_risk_factor(
+        create_test_context(event_count=6)
+    )
+    assert factor is not None
+    assert factor.impact == 20
+
+def test_recent_activity_thresholds():
+    assert get_recent_activity_risk_factor(
+        create_test_context(recent_event_count=1)
+    ) is None
+
+    factor = get_recent_activity_risk_factor(
+        create_test_context(recent_event_count=2)
+    )
+    assert factor is not None
+    assert factor.impact == 5
+
+    factor = get_recent_activity_risk_factor(
+        create_test_context(recent_event_count=4)
+    )
+    assert factor is not None
+    assert factor.impact == 15
+
+    factor = get_recent_activity_risk_factor(
+        create_test_context(recent_event_count=6)
+    )
+    assert factor is not None
+    assert factor.impact == 20
+
+def test_failed_login_activity_thresholds():
+    assert get_failed_login_risk_factor(
+        create_test_context(failed_login_count=1)
+    ) is None
+
+    factor = get_failed_login_risk_factor(
+        create_test_context(failed_login_count=2)
+    )
+    assert factor is not None
+    assert factor.impact == 5
+
+    factor = get_failed_login_risk_factor(
+        create_test_context(failed_login_count=4)
+    )
+    assert factor is not None
+    assert factor.impact == 10
+
+    factor = get_failed_login_risk_factor(
+        create_test_context(failed_login_count=6)
+    )
+    assert factor is not None
+    assert factor.impact == 15
+
+
+def test_multiple_username_thresholds():
+    assert get_multiple_usernames_risk_factor(
+        create_test_context(unique_username_count=1)
+    ) is None
+
+    factor = get_multiple_usernames_risk_factor(
+        create_test_context(unique_username_count=2)
+    )
+    assert factor is not None
+    assert factor.impact == 5
+
+    factor = get_multiple_usernames_risk_factor(
+        create_test_context(unique_username_count=4)
+    )
+    assert factor is not None
+    assert factor.impact == 10

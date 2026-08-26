@@ -22,6 +22,29 @@ EVENT_RISK_MODIFIERS = {
     "unauthorized_access": 20,
 }
 
+EVENT_RISK_DESCRIPTIONS = {
+    "failed_login": (
+        "The event represents a failed authentication attempt, "
+        "which may indicate an authentication attack."
+    ),
+    "brute_force": (
+        "The event indicates brute-force activity, which may represent "
+        "repeated attempts to gain unauthorized access."
+    ),
+    "port_scan": (
+        "The event indicates port-scanning activity, which may represent "
+        "reconnaissance against the target system."
+    ),
+    "malware_detected": (
+        "The event indicates detected malware activity, which may "
+        "represent a compromise of the affected system."
+    ),
+    "unauthorized_access": (
+        "The event indicates unauthorized access, which may represent "
+        "a compromise of the affected account or system."
+    ),
+}
+
 PRIVILEGED_USERNAMES = {
     "admin",
     "administrator",
@@ -120,7 +143,8 @@ def get_severity_risk_factor(
         factor=f"{severity}_severity",
         impact=impact,
         description=(
-            f"The event has a {severity} severity level."
+            f"The event has a {severity} severity level, indicating a "
+            "significant potential security impact."
         ),
     )
 
@@ -145,9 +169,9 @@ def get_event_type_risk_factor(
     return RiskFactor(
         factor=event_type,
         impact=impact,
-        description=(
-            f"The event type '{event_type}' contributes "
-            f"additional risk."
+        description=EVENT_RISK_DESCRIPTIONS.get(
+            event_type,
+            f"The event type '{event_type}' contributes additional risk.",
         ),
     )
 
@@ -167,7 +191,8 @@ def get_privileged_account_risk_factor(
         factor="privileged_account",
         impact=10,
         description=(
-            "The event involves a privileged account."
+            "The event targets a privileged account, increasing the potential "
+            "impact of unauthorized access."
         ),
     )
 
@@ -186,7 +211,8 @@ def get_external_ip_risk_factor(
         factor="external_source",
         impact=5,
         description=(
-            "The event originated from an external IP address."
+           "The event originated from an external source, increasing exposure "
+           "to internet-based attacks."
         ),
     )
 
@@ -246,8 +272,8 @@ def get_historical_risk_factor(
         factor="historical_activity",
         impact=impact,
         description=(
-            f"The source has generated "
-            f"{context.event_count} related events."
+            f"The source has generated {context.event_count} related events, "
+            "indicating repeated activity from the same source."
         ),
     )
 
@@ -271,9 +297,9 @@ def get_recent_activity_risk_factor(
         factor="recent_activity",
         impact=impact,
         description=(
-            f"The source has generated "
-            f"{context.recent_event_count} related events "
-            f"within the recent activity window."
+            f"The source has generated {context.recent_event_count} related "
+            "events within the recent activity window, indicating "
+            "concentrated activity."
         ),
     )
 
@@ -298,8 +324,8 @@ def get_failed_login_risk_factor(
         factor="failed_login_activity",
         impact=impact,
         description=(
-            f"The source has generated "
-            f"{context.failed_login_count} failed-login events."
+            f"The source has generated {context.failed_login_count} "
+            "failed-login events, indicating repeated authentication activity."
         ),
     )
 
@@ -323,8 +349,9 @@ def get_multiple_usernames_risk_factor(
         factor="multiple_usernames",
         impact=impact,
         description=(
-            f"The source has targeted "
-            f"{context.unique_username_count} unique usernames."
+            f"The source has targeted {context.unique_username_count} unique "
+            "usernames, which may indicate account enumeration or "
+            "credential attacks."
         ),
     )
 
