@@ -4,7 +4,6 @@ from app.services.event_context import EventContext
 from app.models.security_event import SecurityEvent
 from app.services.security_analyzer import (
     calculate_risk_score,
-    determine_risk_level,
     get_severity_risk_factor,
     get_event_type_risk_factor,
     get_privileged_account_risk_factor,
@@ -14,6 +13,8 @@ from app.services.security_analyzer import (
     get_failed_login_risk_factor,
     get_multiple_usernames_risk_factor,
     build_risk_factors,
+    calculate_failed_login_modifier,
+    calculate_multiple_usernames_modifier,
 )
 from app.schemas.security_event import RiskFactor
 
@@ -613,6 +614,13 @@ def test_failed_login_activity_thresholds():
     assert factor.impact == 15
 
 
+def test_failed_login_modifier_thresholds():
+    assert calculate_failed_login_modifier(1) == 0
+    assert calculate_failed_login_modifier(2) == 5
+    assert calculate_failed_login_modifier(4) == 10
+    assert calculate_failed_login_modifier(6) == 15
+
+
 def test_multiple_username_thresholds():
     assert get_multiple_usernames_risk_factor(
         create_test_context(unique_username_count=1)
@@ -629,3 +637,41 @@ def test_multiple_username_thresholds():
     )
     assert factor is not None
     assert factor.impact == 10
+
+
+def test_multiple_usernames_modifier_thresholds():
+    assert calculate_multiple_usernames_modifier(1) == 0
+    assert calculate_multiple_usernames_modifier(2) == 5
+    assert calculate_multiple_usernames_modifier(4) == 10
+
+
+def test_risk_score_matches_risk_factor_impacts():
+    event = create_test_event(
+        severity="high",
+        event_type="failed_login",
+        username="admin",
+        source_ip="185.23.45.10",
+    )
+
+    context = create_test_context(
+        event_count=4,
+        recent_event_count=4,
+        failed_login_count=4,
+        unique_username_count=2,
+    )
+
+    factors = build_risk_factors(
+        event=event,
+        context=context,
+    )
+
+    score = calculate_risk_score(
+        factors=factors,
+    )
+
+    expected_score = min(
+        sum(factor.impact for factor in factors),
+        100,
+    )
+
+    assert score == expected_score

@@ -253,6 +253,44 @@ def calculate_recent_activity_modifier(
 
     return 0
 
+
+def calculate_failed_login_modifier(
+    failed_login_count: int,
+) -> int:
+    """
+    Calculate additional risk based on repeated
+    failed-login activity.
+    """
+
+    if failed_login_count >= 6:
+        return 15
+
+    if failed_login_count >= 4:
+        return 10
+
+    if failed_login_count >= 2:
+        return 5
+
+    return 0
+
+
+def calculate_multiple_usernames_modifier(
+    unique_username_count: int,
+) -> int:
+    """
+    Calculate additional risk based on activity
+    targeting multiple usernames.
+    """
+
+    if unique_username_count >= 4:
+        return 10
+
+    if unique_username_count >= 2:
+        return 5
+
+    return 0
+
+
 def get_historical_risk_factor(
     context: EventContext,
 ) -> RiskFactor | None:
@@ -311,13 +349,11 @@ def get_failed_login_risk_factor(
     failed-login activity.
     """
 
-    if context.failed_login_count >= 6:
-        impact = 15
-    elif context.failed_login_count >= 4:
-        impact = 10
-    elif context.failed_login_count >= 2:
-        impact = 5
-    else:
+    impact = calculate_failed_login_modifier(
+        context.failed_login_count
+    )
+
+    if impact == 0:
         return None
 
     return RiskFactor(
@@ -338,11 +374,11 @@ def get_multiple_usernames_risk_factor(
     targets multiple usernames.
     """
 
-    if context.unique_username_count >= 4:
-        impact = 10
-    elif context.unique_username_count >= 2:
-        impact = 5
-    else:
+    impact = calculate_multiple_usernames_modifier(
+        context.unique_username_count
+    )
+
+    if impact == 0:
         return None
 
     return RiskFactor(
@@ -399,62 +435,22 @@ def build_risk_factors(
     Build all explainable risk factors for a security event.
     """
 
-    factors: list[RiskFactor] = []
+    possible_factors = [
+        get_severity_risk_factor(event),
+        get_event_type_risk_factor(event),
+        get_privileged_account_risk_factor(event),
+        get_external_ip_risk_factor(event),
+        get_historical_risk_factor(context),
+        get_recent_activity_risk_factor(context),
+        get_failed_login_risk_factor(context),
+        get_multiple_usernames_risk_factor(context),
+    ]
 
-    severity_factor = get_severity_risk_factor(event)
-
-    if severity_factor:
-        factors.append(severity_factor)
-
-    event_type_factor = get_event_type_risk_factor(event)
-
-    if event_type_factor:
-        factors.append(event_type_factor)
-
-    privileged_factor = get_privileged_account_risk_factor(
-        event
-    )
-
-    if privileged_factor:
-        factors.append(privileged_factor)
-
-    external_ip_factor = get_external_ip_risk_factor(
-        event
-    )
-
-    if external_ip_factor:
-        factors.append(external_ip_factor)
-
-    historical_factor = get_historical_risk_factor(
-        context
-    )
-
-    if historical_factor:
-        factors.append(historical_factor)
-
-    recent_activity_factor = get_recent_activity_risk_factor(
-        context
-    )
-
-    if recent_activity_factor:
-        factors.append(recent_activity_factor)
-
-    failed_login_factor = get_failed_login_risk_factor(
-        context
-    )
-
-    if failed_login_factor:
-        factors.append(failed_login_factor)
-
-    multiple_usernames_factor = get_multiple_usernames_risk_factor(
-        context
-    )
-
-    if multiple_usernames_factor:
-        factors.append(multiple_usernames_factor)
-
-    return factors
-
+    return [
+        factor
+        for factor in possible_factors
+        if factor is not None
+    ]
 
 def calculate_risk_score(
     factors: list[RiskFactor],

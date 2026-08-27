@@ -25,9 +25,11 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Context-aware risk analysis
 - Behavioral analysis
 - Explainable risk factors
+- Security-focused risk-factor explanations
+- Boundary-tested behavioral risk thresholds
 - Unit tests
 - API integration tests
-- 32 automated tests passing
+- 40 automated tests passing
 
 ---
 
@@ -156,22 +158,22 @@ The backend follows a layered architecture.
     {
       "factor": "high_severity",
       "impact": 70,
-      "description": "The event has a high severity level."
+      "description": "The event has a high severity level, indicating a significant potential security impact."
     },
     {
       "factor": "failed_login",
       "impact": 10,
-      "description": "The event type 'failed_login' contributes additional risk."
+      "description": "The event represents a failed authentication attempt, which may indicate an authentication attack."
     },
     {
       "factor": "privileged_account",
       "impact": 10,
-      "description": "The event involves a privileged account."
+      "description": "The event targets a privileged account, increasing the potential impact of unauthorized access."
     },
     {
       "factor": "external_source",
       "impact": 5,
-      "description": "The event originated from an external IP address."
+      "description": "The event originated from an external source, increasing exposure to internet-based attacks."
     }
   ]
 }
@@ -187,7 +189,15 @@ The analyzer first generates structured risk factors from the event and its surr
 - A risk impact
 - A human-readable explanation
 
-The final score is calculated by summing the impacts of the generated risk factors and is capped at 100.
+The final score is calculated by summing the impacts of the generated risk factors and is capped at 100.This ensures that the final risk score is directly traceable to the structured risk factors returned by the analyzer.
+
+In other words, the security evidence used to explain the score is the
+same evidence used to calculate it.
+
+risk_score = min(
+    sum(factor.impact for factor in factors),
+    100,
+)
 
 ## Base Severity
 
@@ -236,6 +246,23 @@ Each factor contributes an explicit risk impact and contains a human-readable ex
 | 4–5           | +15      |
 | 6+            | +20      |
 
+
+| Failed-Login Events | Modifier |
+| ------------------- | -------- |
+| 1 or fewer          | +0       |
+| 2–3                 | +5       |
+| 4–5                 | +10      |
+| 6+                  | +15      |
+
+
+| Unique Usernames | Modifier |
+| ---------------- | -------- |
+| 1 or fewer       | +0       |
+| 2–3              | +5       |
+| 4+               | +10      |
+
+
+
 ## Behavioral Analysis
 
 The analyzer evaluates related events from the same source to identify suspicious behavioral patterns.
@@ -249,13 +276,15 @@ Current behavioral signals include:
 
 These signals allow the analyzer to increase risk when an isolated event becomes more suspicious when viewed in context.
 
-```markdown
-The final risk score is capped at 100:
-```
+The final risk score is calculated from the generated risk factors and capped at 100:
 
 ```python
-risk_score = min(calculated_score, 100)
+risk_score = min(
+    sum(factor.impact for factor in factors),
+    100,
+)
 ```
+
 
 # Testing
 
@@ -267,7 +296,7 @@ From the `backend` directory:
 pytest
 ```
 
-The project currently contains 32 automated tests.
+The project currently contains 40 automated tests.
 
 ## Unit Tests
 
@@ -287,6 +316,12 @@ Tests the deterministic risk-analysis logic including:
 - Risk-factor aggregation
 - Risk-score calculation
 - Risk-score capping
+- Historical activity threshold boundaries
+- Recent activity threshold boundaries
+- Failed-login activity threshold boundaries
+- Multiple-username threshold boundaries
+- Behavioral modifier calculations
+- Risk-score explainability contract
 
 ## API Integration Tests
 
