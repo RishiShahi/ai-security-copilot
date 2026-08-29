@@ -427,6 +427,56 @@ def get_recommendation(threat_type: str) -> str:
         RECOMMENDATIONS["unknown"],
     )
 
+
+def calculate_risk_score(
+    factors: list[RiskFactor],
+) -> int:
+    """
+    Calculate the final risk score from risk factors.
+    """
+
+    risk_score = sum(
+        factor.impact
+        for factor in factors
+    )
+
+    return min(risk_score, 100)
+
+
+def build_analysis_response(
+    event: SecurityEvent,
+    risk_factors: list[RiskFactor],
+) -> SecurityAnalysisResponse:
+    """
+    Build the final deterministic security analysis response
+    from the calculated risk factors.
+    """
+
+    risk_score = calculate_risk_score(
+        factors=risk_factors,
+    )
+
+    risk_level = determine_risk_level(
+        risk_score
+    )
+
+    threat_type = classify_threat(event)
+
+    recommendation = get_recommendation(
+        threat_type
+    )
+
+    return SecurityAnalysisResponse(
+        event_id=event.id,
+        risk_score=risk_score,
+        risk_level=risk_level,
+        threat_type=threat_type,
+        risk_factors=risk_factors,
+        recommendation=recommendation,
+    )
+
+
+
 def build_risk_factors(
     event: SecurityEvent,
     context: EventContext,
@@ -452,19 +502,7 @@ def build_risk_factors(
         if factor is not None
     ]
 
-def calculate_risk_score(
-    factors: list[RiskFactor],
-) -> int:
-    """
-    Calculate the final risk score from risk factors.
-    """
 
-    risk_score = sum(
-        factor.impact
-        for factor in factors
-    )
-
-    return min(risk_score, 100)
 
 def analyze_security_event(
     event: SecurityEvent,
@@ -479,25 +517,7 @@ def analyze_security_event(
         context=context,
     )
 
-    risk_score = calculate_risk_score(
-        factors=risk_factors,
-    )
-
-    risk_level = determine_risk_level(
-        risk_score
-    )
-
-    threat_type = classify_threat(event)
-
-    recommendation = get_recommendation(
-        threat_type
-    )
-
-    return SecurityAnalysisResponse(
-        event_id=event.id,
-        risk_score=risk_score,
-        risk_level=risk_level,
-        threat_type=threat_type,
+    return build_analysis_response(
+        event=event,
         risk_factors=risk_factors,
-        recommendation=recommendation,
     )

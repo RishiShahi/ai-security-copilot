@@ -27,9 +27,12 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Explainable risk factors
 - Security-focused risk-factor explanations
 - Boundary-tested behavioral risk thresholds
+- Risk-factor generation separated from final analysis construction
+- Deterministic analysis response builder
+- Direct unit tests for analysis response construction
 - Unit tests
 - API integration tests
-- 40 automated tests passing
+- 42 automated tests passing
 
 ---
 
@@ -94,22 +97,25 @@ The backend follows a layered architecture.
                          │            │            │
                          └────────────┼────────────┘
                                       ▼
-                                RiskFactor[]
-                                      │
-                         ┌────────────┴────────────┐
-                         ▼                         ▼
-                  Risk Score                 Explanations
-                         │                         │
-                         ▼                         │
-                    Risk Level                    │
-                         │                         │
-                         ├── Threat Type           │
-                         │                         │
-                         └── Recommendation        │
-                                      │            │
-                                      └──────┬─────┘
-                                             ▼
-                                      Analysis Response
+                              RiskFactor[]
+                                   │
+                                   ▼
+                   Analysis Response Builder
+                              │
+
+                ┌─────────────┼─────────────┐
+                ▼             ▼             ▼
+
+           Risk Score      Threat Type   Explanations
+                │             │             │
+                ▼             ▼             │
+
+           Risk Level   Recommendation     │
+                │             │             │
+                └─────────────┼─────────────┘
+                              ▼
+
+                     SecurityAnalysisResponse
 ```
 
 # Tech Stack
@@ -278,6 +284,33 @@ These signals allow the analyzer to increase risk when an isolated event becomes
 
 The final risk score is calculated from the generated risk factors and capped at 100:
 
+### Deterministic Analysis Pipeline
+
+The security analyzer separates risk-factor generation from final analysis construction.
+
+```text
+Security Event + EventContext
+            │
+            ▼
+     Risk Factor Engine
+            │
+            ▼
+       RiskFactor[]
+            │
+            ▼
+ Analysis Response Builder
+            │
+     ┌──────┼──────────┐
+     ▼      ▼          ▼
+Risk Score Risk Level Threat Type
+                       │
+                       ▼
+                Recommendation
+                       │
+                       ▼
+          SecurityAnalysisResponse
+```text
+
 ```python
 risk_score = min(
     sum(factor.impact for factor in factors),
@@ -296,7 +329,7 @@ From the `backend` directory:
 pytest
 ```
 
-The project currently contains 40 automated tests.
+The project currently contains 42 automated tests.
 
 ## Unit Tests
 
@@ -322,6 +355,9 @@ Tests the deterministic risk-analysis logic including:
 - Multiple-username threshold boundaries
 - Behavioral modifier calculations
 - Risk-score explainability contract
+- Deterministic analysis response construction
+- Analysis response risk-score calculation
+- Analysis response risk-score capping
 
 ## API Integration Tests
 

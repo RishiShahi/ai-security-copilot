@@ -15,6 +15,7 @@ from app.services.security_analyzer import (
     build_risk_factors,
     calculate_failed_login_modifier,
     calculate_multiple_usernames_modifier,
+    build_analysis_response,
 )
 from app.schemas.security_event import RiskFactor
 
@@ -675,3 +676,75 @@ def test_risk_score_matches_risk_factor_impacts():
     )
 
     assert score == expected_score
+
+
+def test_build_analysis_response_returns_complete_analysis():
+    event = SecurityEvent(
+        id=1,
+        event_type="failed_login",
+        severity="high",
+        source_ip="8.8.8.8",
+        username="test_user",
+        source="test",
+        message="Failed login attempt.",
+    )
+
+    risk_factors = [
+        RiskFactor(
+            factor="high_severity",
+            impact=70,
+            description="High severity event.",
+        ),
+        RiskFactor(
+            factor="external_source",
+            impact=5,
+            description="External source.",
+        ),
+    ]
+
+    response = build_analysis_response(
+        event=event,
+        risk_factors=risk_factors,
+    )
+
+    assert response.event_id == event.id
+    assert response.risk_score == 75
+    assert response.risk_level == "high"
+    assert response.threat_type == "authentication_attack"
+    assert response.risk_factors == risk_factors
+    assert response.recommendation == (
+        "Investigate repeated authentication failures and verify "
+        "whether the source IP is suspicious."
+    )
+
+def test_build_analysis_response_caps_risk_score_at_100():
+    event = SecurityEvent(
+        id=1,
+        event_type="failed_login",
+        severity="high",
+        source_ip="8.8.8.8",
+        username="test_user",
+        source="test",
+        message="Failed login attempt.",
+    )
+
+    risk_factors = [
+        RiskFactor(
+            factor="factor_one",
+            impact=70,
+            description="First risk factor.",
+        ),
+        RiskFactor(
+            factor="factor_two",
+            impact=50,
+            description="Second risk factor.",
+        ),
+    ]
+
+    response = build_analysis_response(
+        event=event,
+        risk_factors=risk_factors,
+    )
+
+    assert response.risk_score == 100
+    assert response.risk_level == "critical"
