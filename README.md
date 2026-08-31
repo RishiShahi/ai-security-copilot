@@ -29,6 +29,8 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Boundary-tested behavioral risk thresholds
 - Risk-factor generation separated from final analysis construction
 - Deterministic analysis response builder
+- Security configuration separated from analysis logic
+- Centralized deterministic security rules
 - Direct unit tests for analysis response construction
 - Unit tests
 - API integration tests
@@ -68,7 +70,7 @@ AI Security Copilot aims to assist analysts by:
 The backend follows a layered architecture.
 
 ````text
-                                                Client
+                        Client
                            │
                            ▼
                     FastAPI Router
@@ -79,7 +81,7 @@ The backend follows a layered architecture.
       Security Event API         Analysis API
               │                         │
               ▼                         ▼
-       Service Layer           Security Analyzer
+       Service Layer           Security Analyzer ◄── Security Configuration
               │                         │
               ▼                         ▼
        Repository Layer         Context Builder
@@ -88,7 +90,7 @@ The backend follows a layered architecture.
           SQLAlchemy             EventContext
               │                         │
               ▼                         ▼
-            SQLite            Risk Factor Engine
+            SQLite              Risk Factor Engine
                                       │
                          ┌────────────┼────────────┐
                          ▼            ▼            ▼
@@ -117,6 +119,13 @@ The backend follows a layered architecture.
 
                      SecurityAnalysisResponse
 ```
+
+### Security Analysis Configuration
+
+The deterministic security rules used by the analyzer are centralized in:
+
+```text
+app/core/security_config.py
 
 # Tech Stack
 
@@ -289,6 +298,9 @@ The final risk score is calculated from the generated risk factors and capped at
 The security analyzer separates risk-factor generation from final analysis construction.
 
 ```text
+Security Configuration
+            │
+            ▼
 Security Event + EventContext
             │
             ▼
@@ -446,6 +458,8 @@ ai-security-copilot/
 │ │ ├── api/
 │ │ │ └── routes/
 │ │ ├── core/
+│ │ │ ├── config.py
+│ │ │ └── security_config.py
 │ │ ├── models/
 │ │ ├── repositories/
 │ │ ├── schemas/
