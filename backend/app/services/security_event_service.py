@@ -8,12 +8,18 @@ from app.repositories.security_event_repository import (
     get_events,
     get_event_by_id,
 )
-from app.services.event_context_builder import (
-    build_event_context,
+from app.schemas.investigation import (
+    SecurityInvestigationResponse,
 )
 from app.schemas.security_event import (
     SecurityAnalysisResponse,
     SecurityEventCreate,
+)
+from app.services.event_context_builder import (
+    build_event_context,
+)
+from app.services.investigation_service import (
+    build_investigation_response,
 )
 from app.services.security_analyzer import analyze_security_event
 
@@ -85,4 +91,26 @@ def analyze_security_event_by_id(
     return analyze_security_event(
         event=event,
         context=context,
+    )
+
+
+def investigate_security_event_by_id(
+    db: Session,
+    event_id: int,
+) -> SecurityInvestigationResponse | None:
+    """
+    Build an analyst-oriented investigation for a
+    security event using the existing deterministic analysis.
+    """
+
+    analysis = analyze_security_event_by_id(
+        db=db,
+        event_id=event_id,
+    )
+
+    if analysis is None:
+        return None
+
+    return build_investigation_response(
+        analysis=analysis,
     )

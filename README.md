@@ -34,7 +34,7 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Direct unit tests for analysis response construction
 - Unit tests
 - API integration tests
-- 42 automated tests passing
+- 47 automated tests passing
 
 ---
 
@@ -67,64 +67,83 @@ AI Security Copilot aims to assist analysts by:
 
 ## Architecture
 
-The backend follows a layered architecture.
+The backend follows a layered architecture with separate deterministic analysis and investigation layers.
 
-````text
-                        Client
-                           │
-                           ▼
-                    FastAPI Router
-                           │
-              ┌────────────┴────────────┐
-              │                         │
-              ▼                         ▼
-      Security Event API         Analysis API
-              │                         │
-              ▼                         ▼
-       Service Layer           Security Analyzer ◄── Security Configuration
-              │                         │
-              ▼                         ▼
-       Repository Layer         Context Builder
-              │                         │
-              ▼                         ▼
-          SQLAlchemy             EventContext
-              │                         │
-              ▼                         ▼
-            SQLite              Risk Factor Engine
-                                      │
-                         ┌────────────┼────────────┐
-                         ▼            ▼            ▼
-                     Severity     Historical   Behavioral
-                      Factors      Activity     Activity
-                         │            │            │
-                         └────────────┼────────────┘
-                                      ▼
-                              RiskFactor[]
-                                   │
-                                   ▼
+```text
+                              Client
+                                │
+                                ▼
+                           FastAPI Router
+                                │
+                 ┌──────────────┼──────────────┐
+                 │              │              │
+                 ▼              ▼              ▼
+          Security Event API  Analysis API  Investigation API
+                 │              │              │
+                 ▼              │              │
+             Service Layer      │              │
+                 │              │              │
+                 ▼              ▼              │
+          Repository Layer  Security Analyzer  │
+                 │              │              │
+                 ▼              │              │
+             SQLAlchemy         │              │
+                 │              │              │
+                 ▼              ▼              │
+               SQLite      Context Builder     │
+                                │              │
+                                ▼              │
+                           EventContext        │
+                                │              │
+                                ▼              │
+                        Risk Factor Engine     │
+                                │              │
+                  ┌─────────────┼─────────────┐
+                  │             │             │
+                  ▼             ▼             ▼
+              Severity      Historical    Behavioral
+               Factors       Activity      Activity
+                  │             │             │
+                  └─────────────┼─────────────┘
+                                ▼
+                           RiskFactor[]
+                                │
+                                ▼
                    Analysis Response Builder
-                              │
-
-                ┌─────────────┼─────────────┐
-                ▼             ▼             ▼
-
-           Risk Score      Threat Type   Explanations
-                │             │             │
-                ▼             ▼             │
-
-           Risk Level   Recommendation     │
-                │             │             │
-                └─────────────┼─────────────┘
-                              ▼
-
+                                │
+                  ┌─────────────┼─────────────┐
+                  ▼             ▼             ▼
+              Risk Score     Threat Type   Explanations
+                  │             │             │
+                  ▼             ▼             │
+              Risk Level   Recommendation    │
+                  │             │             │
+                  └─────────────┼─────────────┘
+                                ▼
                      SecurityAnalysisResponse
+                                │
+                                ▼
+                      Investigation Service
+                                │
+                  ┌─────────────┼─────────────┐
+                  ▼             ▼             ▼
+               Evidence       Summary       Actions
+                  │             │             │
+                  └─────────────┼─────────────┘
+                                ▼
+                  SecurityInvestigationResponse
+
+
+Security Configuration
+        │
+        └──────────────► Security Analyzer
 ```
 
 ### Security Analysis Configuration
 
 The deterministic security rules used by the analyzer are centralized in:
 
-```text
+````text
 app/core/security_config.py
 
 # Tech Stack
@@ -159,6 +178,7 @@ app/core/security_config.py
 | GET | `/api/security/events` | Get all security events |
 | GET | `/api/security/events/{id}` | Get a security event |
 | GET | `/api/security/events/{id}/analysis` | Analyze a security event |
+| GET | `/api/security/events/{event_id}/investigation` | Generate an analyst-oriented investigation using deterministic analysis evidence
 
 ## Example Analysis Response
 
@@ -192,7 +212,7 @@ app/core/security_config.py
     }
   ]
 }
-```
+````
 
 ## Risk Scoring
 
@@ -210,8 +230,8 @@ In other words, the security evidence used to explain the score is the
 same evidence used to calculate it.
 
 risk_score = min(
-    sum(factor.impact for factor in factors),
-    100,
+sum(factor.impact for factor in factors),
+100,
 )
 
 ## Base Severity
@@ -239,16 +259,16 @@ The analyzer generates structured risk factors that explain why an event receive
 
 Current risk factors include:
 
-| Risk Factor | Description |
-| ----------- | ----------- |
-| `high_severity` | Risk contribution from event severity |
-| `failed_login` | Risk contribution from the event type |
-| `privileged_account` | Event involves a privileged account |
-| `external_source` | Event originated from an external IP |
-| `historical_activity` | Repeated activity from the same source |
-| `recent_activity` | High activity within a recent time window |
-| `failed_login_activity` | Repeated failed-login behavior |
-| `multiple_usernames` | Source has targeted multiple usernames |
+| Risk Factor             | Description                               |
+| ----------------------- | ----------------------------------------- |
+| `high_severity`         | Risk contribution from event severity     |
+| `failed_login`          | Risk contribution from the event type     |
+| `privileged_account`    | Event involves a privileged account       |
+| `external_source`       | Event originated from an external IP      |
+| `historical_activity`   | Repeated activity from the same source    |
+| `recent_activity`       | High activity within a recent time window |
+| `failed_login_activity` | Repeated failed-login behavior            |
+| `multiple_usernames`    | Source has targeted multiple usernames    |
 
 Each factor contributes an explicit risk impact and contains a human-readable explanation.
 
@@ -261,7 +281,6 @@ Each factor contributes an explicit risk impact and contains a human-readable ex
 | 4–5           | +15      |
 | 6+            | +20      |
 
-
 | Failed-Login Events | Modifier |
 | ------------------- | -------- |
 | 1 or fewer          | +0       |
@@ -269,14 +288,11 @@ Each factor contributes an explicit risk impact and contains a human-readable ex
 | 4–5                 | +10      |
 | 6+                  | +15      |
 
-
 | Unique Usernames | Modifier |
 | ---------------- | -------- |
 | 1 or fewer       | +0       |
 | 2–3              | +5       |
 | 4+               | +10      |
-
-
 
 ## Behavioral Analysis
 
@@ -297,7 +313,7 @@ The final risk score is calculated from the generated risk factors and capped at
 
 The security analyzer separates risk-factor generation from final analysis construction.
 
-```text
+````text
 Security Configuration
             │
             ▼
@@ -328,8 +344,7 @@ risk_score = min(
     sum(factor.impact for factor in factors),
     100,
 )
-```
-
+````
 
 # Testing
 
@@ -341,7 +356,7 @@ From the `backend` directory:
 pytest
 ```
 
-The project currently contains 42 automated tests.
+The project currently contains 47 automated tests.
 
 ## Unit Tests
 
@@ -382,7 +397,7 @@ HTTP Request
      ↓
 FastAPI Router
      ↓
-Security Service
+Security Event Service
      ↓
 Repository
      ↓
@@ -396,6 +411,12 @@ Risk Factors
      ↓
 Risk Score + Explanation
      ↓
+SecurityAnalysisResponse
+     ↓
+Investigation Service
+     ↓
+SecurityInvestigationResponse
+     ↓
 HTTP Response
 ```
 
@@ -407,7 +428,6 @@ HTTP Response
 git clone https://github.com/RishiShahi/ai-security-copilot.git
 cd ai-security-copilot
 ```
-
 
 And:
 
@@ -447,33 +467,43 @@ Swagger documentation:
 http://127.0.0.1:8000/docs
 ```
 
-
 # Project Structure
 
 ```text
 ai-security-copilot/
 │
 ├── backend/
-│ ├── app/
-│ │ ├── api/
-│ │ │ └── routes/
-│ │ ├── core/
-│ │ │ ├── config.py
-│ │ │ └── security_config.py
-│ │ ├── models/
-│ │ ├── repositories/
-│ │ ├── schemas/
-│ │ ├── services/
-│ │ ├── database.py
-│ │ └── main.py
+| ├── app/
+| |   ├── api/
+| |   |   └── routes/
+| |   |   └── security_events.py
+│ │   |── core/
+| |   |  ├── config.py
+| |   |  └── security_config.py
+│ │   ├── models/
+| |   |  └── security_event.py
+│ │   ├── repositories/
+| |   |  └── security_event_repository.py
+│ │   ├── schemas/
+| |   |   └── investigation.py
+| |   |   └── security_event.py
+│ │   |── services/
+| |   |    ├── event_context.py
+| |   |    ├── event_context_builder.py
+| |   |    ├── security_analyzer.py
+| |   |    └── investigation_service.py
+| |   |    └── security_event_service.py
+│ │   |── database.py
+│ │   |── main.py
 │ │
 │ ├── tests/
-│ │ ├── conftest.py
-│ │ ├── test_security_analyzer.py
-│ │ └── test_security_events.py
+| |   ├── conftest.py
+| |   ├── test_investigation_service.py
+| |   ├── test_security_analyzer.py
+| |   └── test_security_events.py
 │ │
 │ └── requirements.txt
 │
 ├── README.md
 └── .gitignore
-````
+```

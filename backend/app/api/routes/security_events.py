@@ -12,8 +12,11 @@ from app.services.security_event_service import (
     create_security_event,
     get_security_events,
     get_security_event,
+    investigate_security_event_by_id,
 )
-
+from app.schemas.investigation import (
+    SecurityInvestigationResponse,
+)
 
 router = APIRouter()
 
@@ -81,3 +84,25 @@ def analyze_event(
         )
 
     return analysis
+
+
+@router.get(
+    "/events/{event_id}/investigation",
+    response_model=SecurityInvestigationResponse,
+)
+def investigate_event(
+    event_id: int,
+    db: Session = Depends(get_db),
+):
+    investigation = investigate_security_event_by_id(
+        db=db,
+        event_id=event_id,
+    )
+
+    if investigation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Security event not found",
+        )
+
+    return investigation

@@ -286,3 +286,53 @@ def test_analyze_security_event_with_multiple_usernames(client):
     }
 
     assert "multiple_usernames" in factor_names
+
+
+def test_investigate_security_event(client):
+
+    create_response = client.post(
+        "/api/security/events",
+        json=create_test_event(),
+    )
+
+    assert create_response.status_code == 200
+
+    event_id = create_response.json()["id"]
+
+    response = client.get(
+        f"/api/security/events/{event_id}/investigation",
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["event_id"] == event_id
+    assert "summary" in data
+    assert "risk_score" in data
+    assert "risk_level" in data
+    assert "threat_type" in data
+    assert "evidence" in data
+    assert "recommended_actions" in data
+
+    assert isinstance(
+        data["evidence"],
+        list,
+    )
+
+    assert isinstance(
+        data["recommended_actions"],
+        list,
+    )
+
+
+def test_investigate_nonexistent_security_event(client):
+    response = client.get(
+        "/api/security/events/99999/investigation",
+    )
+
+    assert response.status_code == 404
+
+    assert response.json() == {
+        "detail": "Security event not found",
+    }
