@@ -1,5 +1,6 @@
 from app.schemas.investigation import (
     InvestigationEvidence,
+    RelatedSecurityEvent,
     SecurityInvestigationResponse,
 )
 from app.schemas.security_event import (
@@ -27,14 +28,20 @@ def build_investigation_evidence(
 
 def build_investigation_summary(
     analysis: SecurityAnalysisResponse,
+    related_events: list[RelatedSecurityEvent],
 ) -> str:
     """
     Build a deterministic analyst-oriented summary
-    from the existing security analysis.
+    from the existing security analysis and correlated
+    security events.
     """
 
     evidence_count = len(
         analysis.risk_factors
+    )
+
+    related_event_count = len(
+        related_events
     )
 
     return (
@@ -42,16 +49,19 @@ def build_investigation_summary(
         f"with a {analysis.risk_level} risk level and a risk "
         f"score of {analysis.risk_score}. "
         f"The investigation identified {evidence_count} "
-        f"risk factor(s) contributing to the assessment."
+        f"risk factor(s) contributing to the assessment and "
+        f"{related_event_count} related security event(s)."
     )
 
 
 def build_investigation_response(
     analysis: SecurityAnalysisResponse,
+    related_events: list[RelatedSecurityEvent],
 ) -> SecurityInvestigationResponse:
     """
     Build a structured security investigation response
-    from deterministic security analysis results.
+    from deterministic security analysis results and
+    correlated security events.
     """
 
     evidence = build_investigation_evidence(
@@ -60,6 +70,7 @@ def build_investigation_response(
 
     summary = build_investigation_summary(
         analysis=analysis,
+        related_events=related_events,
     )
 
     return SecurityInvestigationResponse(
@@ -69,6 +80,7 @@ def build_investigation_response(
         risk_level=analysis.risk_level,
         threat_type=analysis.threat_type,
         evidence=evidence,
+        related_events=related_events,
         recommended_actions=[
             analysis.recommendation,
         ],

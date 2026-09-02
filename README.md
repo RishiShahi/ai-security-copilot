@@ -36,6 +36,21 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - API integration tests
 - 47 automated tests passing
 
+### Week 3 — Investigation Layer (In Progress)
+
+- Analyst-oriented security investigations
+- Structured investigation evidence
+- Investigation summaries
+- Recommended security actions
+- Related security-event correlation
+- Source IP correlation
+- Username correlation
+- Explainable correlation reasons
+- Duplicate related-event protection
+- Event correlation unit tests
+- Investigation API integration tests
+- 57 automated tests passing
+
 ---
 
 # What is AI Security Copilot?
@@ -75,64 +90,72 @@ The backend follows a layered architecture with separate deterministic analysis 
                                 ▼
                            FastAPI Router
                                 │
-                 ┌──────────────┼──────────────┐
-                 │              │              │
-                 ▼              ▼              ▼
-          Security Event API  Analysis API  Investigation API
-                 │              │              │
-                 ▼              │              │
-             Service Layer      │              │
-                 │              │              │
-                 ▼              ▼              │
-          Repository Layer  Security Analyzer  │
-                 │              │              │
-                 ▼              │              │
-             SQLAlchemy         │              │
-                 │              │              │
-                 ▼              ▼              │
-               SQLite      Context Builder     │
-                                │              │
-                                ▼              │
-                           EventContext        │
-                                │              │
-                                ▼              │
-                        Risk Factor Engine     │
-                                │              │
-                  ┌─────────────┼─────────────┐
-                  │             │             │
-                  ▼             ▼             ▼
-              Severity      Historical    Behavioral
-               Factors       Activity      Activity
-                  │             │             │
-                  └─────────────┼─────────────┘
+                 ┌──────────────┼───────────────────┐
+                 │              │                   │
+                 ▼              ▼                   ▼
+          Security Event API  Analysis API      Investigation API
+                 │              │                   │
+                 ▼              │                   │
+             Service Layer      │                   │
+                 │              │                   │
+                 ▼              ▼                   │
+          Repository Layer  Security Event Service  │
+                 │              │                   │
+                 ▼              ▼                   │
+             SQLAlchemy    Retrieve Event           │
+                 │               │                  │
+                 │               ▼                  │
+                 ▼         ┌─────┴──────────────────┐
+               SQLite   Event Context Builder    Candidate Retrieval
+                                │             ┌─────┴─────┐
+                                ▼             ▼           ▼
+                           EventContext    Source IP    Username
+                                │              │           │
+                                ▼              │           │
+                         Security Analyzer     └─────┬─────┘
+                                │                Event Corelation
                                 ▼
-                           RiskFactor[]
-                                │
-                                ▼
-                   Analysis Response Builder
-                                │
-                  ┌─────────────┼─────────────┐
-                  ▼             ▼             ▼
-              Risk Score     Threat Type   Explanations
-                  │             │             │
-                  ▼             ▼             │
-              Risk Level   Recommendation    │
-                  │             │             │
-                  └─────────────┼─────────────┘
-                                ▼
-                     SecurityAnalysisResponse
-                                │
-                                ▼
-                      Investigation Service
-                                │
-                  ┌─────────────┼─────────────┐
-                  ▼             ▼             ▼
-               Evidence       Summary       Actions
-                  │             │             │
-                  └─────────────┼─────────────┘
-                                ▼
-                  SecurityInvestigationResponse
-
+                        Risk Factor Engine           │
+                                │                    │
+                  ┌─────────────┼─────────────┐   Related Events
+                  │             │             │      │
+                  ▼             ▼             ▼      │
+              Severity      Historical    Behavioral │
+               Factors       Activity      Activity  │
+                  │             │             │      │
+                  └─────────────┼─────────────┘      │
+                                ▼                    │
+                           RiskFactor[]              │
+                                │                    │
+                                ▼                    │
+                   Analysis Response Builder         │
+                                │                    │
+                  ┌─────────────┼─────────────┐      │
+                  ▼             ▼             ▼      │
+              Risk Score     Threat Type Explanations│
+                  │             │             │      │
+                  ▼             ▼             │      │
+              Risk Level   Recommendation     │      │
+                  │             │             │      │
+                  └─────────────┼─────────────┘      │
+                                ▼                    │
+                     SecurityAnalysisResponse        │
+                                │                    │
+                                └───────────┬────────┘
+                                            ▼
+                                   Investigation Service
+                                             │
+                              ┌─────────────┼─────────────┐
+                              ▼             ▼             ▼
+                              Evidence       Summary      Related Events
+                              │             │             │
+                              |             |          Correlation Reasons
+                              └─────────────┼─────────────┘
+                                             ▼
+                              SecurityInvestigationResponse
+                                             │
+                                             ▼
+                                   Investigation API Response
 
 Security Configuration
         │
@@ -178,7 +201,7 @@ app/core/security_config.py
 | GET | `/api/security/events` | Get all security events |
 | GET | `/api/security/events/{id}` | Get a security event |
 | GET | `/api/security/events/{id}/analysis` | Analyze a security event |
-| GET | `/api/security/events/{event_id}/investigation` | Generate an analyst-oriented investigation using deterministic analysis evidence
+| GET | `/api/security/events/{event_id}/investigation` | Generate an analyst-oriented investigation using deterministic risk analysis and related-event correlation |
 
 ## Example Analysis Response
 
@@ -309,6 +332,36 @@ These signals allow the analyzer to increase risk when an isolated event becomes
 
 The final risk score is calculated from the generated risk factors and capped at 100:
 
+# Event Correlation
+
+The investigation layer correlates related security events to provide additional context beyond the risk analysis of a single event.
+
+The current correlation engine identifies related events using deterministic signals:
+
+- Same source IP address
+- Same username
+- Same source IP address and username
+
+The investigated event itself is excluded from its related-event results.
+
+## Correlation Reasons
+
+Each related event includes structured correlation reasons explaining why it is connected to the investigated event.
+
+Example:
+
+```json
+{
+  "event_id": 12,
+  "timestamp": "2026-09-02T10:30:00Z",
+  "event_type": "failed_login",
+  "severity": "medium",
+  "source_ip": "185.23.45.10",
+  "username": "admin",
+  "correlation_reasons": ["Same source IP", "Same username"]
+}
+```
+
 ### Deterministic Analysis Pipeline
 
 The security analyzer separates risk-factor generation from final analysis construction.
@@ -356,7 +409,7 @@ From the `backend` directory:
 pytest
 ```
 
-The project currently contains 47 automated tests.
+The project currently contains 57 automated tests.
 
 ## Unit Tests
 
@@ -386,6 +439,27 @@ Tests the deterministic risk-analysis logic including:
 - Analysis response risk-score calculation
 - Analysis response risk-score capping
 
+`tests/test_event_correlation_service.py`
+
+Tests deterministic event correlation logic including:
+
+- Same source IP correlation
+- Same username correlation
+- Source IP and username correlation
+- No-correlation scenarios
+- Current-event exclusion
+- Duplicate candidate-event exclusion
+
+`tests/test_investigation_service.py`
+
+Tests investigation response construction including:
+
+- Risk-factor conversion into investigation evidence
+- Deterministic investigation summary generation
+- Investigation response construction
+- Related-event inclusion
+- Correlation context in investigation summaries
+
 ## API Integration Tests
 
 `tests/test_security_events.py`
@@ -403,21 +477,29 @@ Repository
      ↓
 SQLite
      ↓
-EventContext
-     ↓
-Security Analyzer
-     ↓
-Risk Factors
-     ↓
-Risk Score + Explanation
-     ↓
-SecurityAnalysisResponse
-     ↓
-Investigation Service
-     ↓
-SecurityInvestigationResponse
-     ↓
-HTTP Response
+Security Event
+     │
+     ├── EventContext Builder
+     │        ↓
+     │   Security Analyzer
+     │        ↓
+     │   Risk Factors
+     │        ↓
+     │   SecurityAnalysisResponse
+     │
+     └── Candidate Retrieval
+              ├── Source IP
+              └── Username
+                    ↓
+           Event Correlation Service
+                    ↓
+             Related Events
+                    ↓
+          Investigation Service
+                    ↓
+     SecurityInvestigationResponse
+                    ↓
+             HTTP Response
 ```
 
 # Running Locally
@@ -490,6 +572,7 @@ ai-security-copilot/
 │ │   |── services/
 | |   |    ├── event_context.py
 | |   |    ├── event_context_builder.py
+| |   |    ├── event_correlation_service.py
 | |   |    ├── security_analyzer.py
 | |   |    └── investigation_service.py
 | |   |    └── security_event_service.py
@@ -498,6 +581,7 @@ ai-security-copilot/
 │ │
 │ ├── tests/
 | |   ├── conftest.py
+│ |   ├── test_event_correlation_service.py
 | |   ├── test_investigation_service.py
 | |   ├── test_security_analyzer.py
 | |   └── test_security_events.py

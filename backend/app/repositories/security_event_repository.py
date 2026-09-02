@@ -62,3 +62,15 @@ def get_events_by_source_ip(
         .order_by(SecurityEvent.timestamp.desc())
         .all()
     )
+
+
+def get_events_by_username(
+    db: Session,
+    username: str,
+) -> list[SecurityEvent]:
+    return (
+        db.query(SecurityEvent)
+        .filter(SecurityEvent.username == username)
+        .order_by(SecurityEvent.timestamp.desc())
+        .all()
+    )

@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 def create_test_event(
     source_ip: str | None = "185.23.45.10",
+    username: str | None = "admin",
 ):
     return {
         "timestamp": datetime.now(UTC).isoformat(),
@@ -10,7 +11,7 @@ def create_test_event(
         "event_type": "failed_login",
         "severity": "high",
         "source_ip": source_ip,
-        "username": "admin",
+        "username": username,
         "message": "Failed login attempt",
         "description": "Authentication failure from external source",
     }
@@ -336,3 +337,154 @@ def test_investigate_nonexistent_security_event(client):
     assert response.json() == {
         "detail": "Security event not found",
     }
+
+
+def test_investigate_security_event_with_related_source_ip(
+    client,
+):
+    first_event = create_test_event(
+        source_ip="185.23.45.10",
+         username="admin",
+    )
+
+    first_response = client.post(
+        "/api/security/events",
+        json=first_event,
+    )
+
+    assert first_response.status_code == 200
+
+    second_event = create_test_event(
+        source_ip="185.23.45.10",
+        username="different-user",
+    )
+
+    second_response = client.post(
+        "/api/security/events",
+        json=second_event,
+    )
+
+    assert second_response.status_code == 200
+
+    event_id = second_response.json()["id"]
+
+    investigation_response = client.get(
+        f"/api/security/events/{event_id}/investigation",
+    )
+
+    assert investigation_response.status_code == 200
+
+    data = investigation_response.json()
+
+    assert len(data["related_events"]) == 1
+
+    related_event = data["related_events"][0]
+
+    assert related_event["event_id"] == (
+        first_response.json()["id"]
+    )
+
+    assert related_event["correlation_reasons"] == [
+        "Same source IP",
+    ]
+
+
+def test_investigate_security_event_with_related_username(
+    client,
+):
+    first_event = create_test_event(
+        source_ip="185.23.45.10",
+        username="admin",
+    )
+
+    first_response = client.post(
+        "/api/security/events",
+        json=first_event,
+    )
+
+    assert first_response.status_code == 200
+
+    second_event = create_test_event(
+        source_ip="10.0.0.5",
+        username="admin",
+    )
+
+    second_response = client.post(
+        "/api/security/events",
+        json=second_event,
+    )
+
+    assert second_response.status_code == 200
+
+    event_id = second_response.json()["id"]
+
+    investigation_response = client.get(
+        f"/api/security/events/{event_id}/investigation",
+    )
+
+    assert investigation_response.status_code == 200
+
+    data = investigation_response.json()
+
+    assert len(data["related_events"]) == 1
+
+    related_event = data["related_events"][0]
+
+    assert related_event["event_id"] == (
+        first_response.json()["id"]
+    )
+
+    assert related_event["correlation_reasons"] == [
+        "Same username",
+    ]
+
+
+def test_investigate_security_event_with_related_ip_and_username(
+    client,
+):
+    first_event = create_test_event(
+        source_ip="185.23.45.10",
+        username="admin",
+    )
+
+    first_response = client.post(
+        "/api/security/events",
+        json=first_event,
+    )
+
+    assert first_response.status_code == 200
+
+    second_event = create_test_event(
+        source_ip="185.23.45.10",
+        username="admin",
+    )
+
+    second_response = client.post(
+        "/api/security/events",
+        json=second_event,
+    )
+
+    assert second_response.status_code == 200
+
+    event_id = second_response.json()["id"]
+
+    investigation_response = client.get(
+        f"/api/security/events/{event_id}/investigation",
+    )
+
+    assert investigation_response.status_code == 200
+
+    data = investigation_response.json()
+
+    assert len(data["related_events"]) == 1
+
+    related_event = data["related_events"][0]
+
+    assert related_event["event_id"] == (
+        first_response.json()["id"]
+    )
+
+    assert related_event["correlation_reasons"] == [
+        "Same source IP",
+        "Same username",
+    ]

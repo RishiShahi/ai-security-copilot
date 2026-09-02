@@ -1,3 +1,9 @@
+from datetime import UTC, datetime
+
+from app.schemas.investigation import (
+    RelatedSecurityEvent,
+)
+
 from app.schemas.security_event import (
     RiskFactor,
     SecurityAnalysisResponse,
@@ -67,12 +73,14 @@ def test_build_investigation_summary():
 
     summary = build_investigation_summary(
         analysis=analysis,
+        related_events=[],
     )
 
     assert analysis.threat_type in summary
     assert analysis.risk_level in summary
     assert str(analysis.risk_score) in summary
     assert "2 risk factor(s)" in summary
+    assert "0 related security event(s)" in summary
 
 
 def test_build_investigation_response():
@@ -80,8 +88,11 @@ def test_build_investigation_response():
 
     investigation = build_investigation_response(
         analysis=analysis,
+        related_events=[],
     )
 
+    assert investigation.event_id == analysis.event_id
+    assert investigation.related_events == []
     assert investigation.event_id == analysis.event_id
     assert investigation.risk_score == analysis.risk_score
     assert investigation.risk_level == analysis.risk_level
@@ -93,3 +104,39 @@ def test_build_investigation_response():
         investigation.recommended_actions
         == [analysis.recommendation]
     )
+
+
+def test_build_investigation_summary_with_related_events():
+    analysis = create_analysis()
+
+    related_events = [
+        RelatedSecurityEvent(
+            event_id=2,
+            timestamp=datetime.now(UTC),
+            event_type="failed_login",
+            severity="medium",
+            source_ip="185.23.45.10",
+            username="admin",
+            correlation_reasons=[
+                "Same source IP",
+            ],
+        ),
+        RelatedSecurityEvent(
+            event_id=3,
+            timestamp=datetime.now(UTC),
+            event_type="failed_login",
+            severity="medium",
+            source_ip="185.23.45.10",
+            username="different-user",
+            correlation_reasons=[
+                "Same source IP",
+            ],
+        ),
+    ]
+
+    summary = build_investigation_summary(
+        analysis=analysis,
+        related_events=related_events,
+    )
+
+    assert "2 related security event(s)" in summary

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.models.security_event import SecurityEvent
 from app.repositories.security_event_repository import (
     get_events_by_source_ip,
+    get_events_by_username,
     count_recent_events_by_source_ip,
     create_event,
     get_events,
@@ -20,6 +21,9 @@ from app.services.event_context_builder import (
 )
 from app.services.investigation_service import (
     build_investigation_response,
+)
+from app.services.event_correlation_service import (
+    find_related_events,
 )
 from app.services.security_analyzer import analyze_security_event
 
@@ -100,8 +104,17 @@ def investigate_security_event_by_id(
 ) -> SecurityInvestigationResponse | None:
     """
     Build an analyst-oriented investigation for a
-    security event using the existing deterministic analysis.
+    security event using deterministic analysis and
+    event correlation.
     """
+
+    event = get_event_by_id(
+        db=db,
+        event_id=event_id,
+    )
+
+    if event is None:
+        return None
 
     analysis = analyze_security_event_by_id(
         db=db,
@@ -111,6 +124,30 @@ def investigate_security_event_by_id(
     if analysis is None:
         return None
 
+    candidate_events = []
+
+    if event.source_ip:
+        candidate_events.extend(
+            get_events_by_source_ip(
+                db=db,
+                source_ip=event.source_ip,
+            )
+        )
+
+    if event.username:
+        candidate_events.extend(
+            get_events_by_username(
+                db=db,
+                username=event.username,
+            )
+        )
+
+    related_events = find_related_events(
+        event=event,
+        candidate_events=candidate_events,
+    )
+
     return build_investigation_response(
         analysis=analysis,
+        related_events=related_events,
     )
