@@ -1,3 +1,4 @@
+from app.models.security_event import SecurityEvent
 from app.schemas.investigation import (
     InvestigationEvidence,
     RelatedSecurityEvent,
@@ -6,7 +7,13 @@ from app.schemas.investigation import (
 from app.schemas.security_event import (
     SecurityAnalysisResponse,
 )
+from app.services.investigation_timeline_service import (
+    build_investigation_timeline,
+)
 
+from app.services.investigation_prioritization_service import (
+    prioritize_related_events,
+)
 
 def build_investigation_evidence(
     analysis: SecurityAnalysisResponse,
@@ -15,7 +22,6 @@ def build_investigation_evidence(
     Convert deterministic risk factors into structured
     investigation evidence.
     """
-
     return [
         InvestigationEvidence(
             category=risk_factor.factor,
@@ -53,8 +59,8 @@ def build_investigation_summary(
         f"{related_event_count} related security event(s)."
     )
 
-
 def build_investigation_response(
+    event: SecurityEvent,
     analysis: SecurityAnalysisResponse,
     related_events: list[RelatedSecurityEvent],
 ) -> SecurityInvestigationResponse:
@@ -73,6 +79,15 @@ def build_investigation_response(
         related_events=related_events,
     )
 
+    timeline = build_investigation_timeline(
+        event=event,
+        related_events=related_events,
+    )
+
+    prioritized_events = prioritize_related_events(
+        related_events=related_events,
+    )
+
     return SecurityInvestigationResponse(
         event_id=analysis.event_id,
         summary=summary,
@@ -81,6 +96,8 @@ def build_investigation_response(
         threat_type=analysis.threat_type,
         evidence=evidence,
         related_events=related_events,
+        timeline=timeline,
+        prioritized_events=prioritized_events,
         recommended_actions=[
             analysis.recommendation,
         ],

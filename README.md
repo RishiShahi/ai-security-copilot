@@ -36,7 +36,7 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - API integration tests
 - 47 automated tests passing
 
-### Week 3 — Investigation Layer (In Progress)
+### Week 3 — Investigation Layer (In Progress) ✅
 
 - Analyst-oriented security investigations
 - Structured investigation evidence
@@ -47,9 +47,21 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Username correlation
 - Explainable correlation reasons
 - Duplicate related-event protection
+- Investigation timeline generation
+- Chronological investigation context
+- Current-event timeline identification
+- Deterministic event prioritization
+- Severity-based priority scoring
+- Correlation-strength priority scoring
+- Human-readable priority levels
+- Explainable priority reasons
+- Prioritized related-event sorting
 - Event correlation unit tests
+- Investigation timeline unit tests
+- Event prioritization unit tests
+- Investigation service integration tests
 - Investigation API integration tests
-- 57 automated tests passing
+- 74 automated tests passing
 
 ---
 
@@ -82,7 +94,7 @@ AI Security Copilot aims to assist analysts by:
 
 ## Architecture
 
-The backend follows a layered architecture with separate deterministic analysis and investigation layers.
+The backend follows a layered architecture with separate deterministic analysis, correlation, investigation, timeline, and prioritization layers.
 
 ```text
                               Client
@@ -90,76 +102,117 @@ The backend follows a layered architecture with separate deterministic analysis 
                                 ▼
                            FastAPI Router
                                 │
-                 ┌──────────────┼───────────────────┐
-                 │              │                   │
-                 ▼              ▼                   ▼
-          Security Event API  Analysis API      Investigation API
-                 │              │                   │
-                 ▼              │                   │
-             Service Layer      │                   │
-                 │              │                   │
-                 ▼              ▼                   │
-          Repository Layer  Security Event Service  │
-                 │              │                   │
-                 ▼              ▼                   │
-             SQLAlchemy    Retrieve Event           │
-                 │               │                  │
-                 │               ▼                  │
-                 ▼         ┌─────┴──────────────────┐
-               SQLite   Event Context Builder    Candidate Retrieval
-                                │             ┌─────┴─────┐
-                                ▼             ▼           ▼
-                           EventContext    Source IP    Username
-                                │              │           │
-                                ▼              │           │
-                         Security Analyzer     └─────┬─────┘
-                                │                Event Corelation
-                                ▼
-                        Risk Factor Engine           │
-                                │                    │
-                  ┌─────────────┼─────────────┐   Related Events
-                  │             │             │      │
-                  ▼             ▼             ▼      │
-              Severity      Historical    Behavioral │
-               Factors       Activity      Activity  │
-                  │             │             │      │
-                  └─────────────┼─────────────┘      │
-                                ▼                    │
-                           RiskFactor[]              │
-                                │                    │
-                                ▼                    │
-                   Analysis Response Builder         │
-                                │                    │
-                  ┌─────────────┼─────────────┐      │
-                  ▼             ▼             ▼      │
-              Risk Score     Threat Type Explanations│
-                  │             │             │      │
-                  ▼             ▼             │      │
-              Risk Level   Recommendation     │      │
-                  │             │             │      │
-                  └─────────────┼─────────────┘      │
-                                ▼                    │
-                     SecurityAnalysisResponse        │
-                                │                    │
-                                └───────────┬────────┘
-                                            ▼
-                                   Investigation Service
-                                             │
-                              ┌─────────────┼─────────────┐
-                              ▼             ▼             ▼
-                              Evidence       Summary      Related Events
-                              │             │             │
-                              |             |          Correlation Reasons
-                              └─────────────┼─────────────┘
-                                             ▼
-                              SecurityInvestigationResponse
-                                             │
-                                             ▼
-                                   Investigation API Response
+          ┌─────────────────────┼─────────────────────┐
+          ▼                     ▼                     ▼
+   Security Event API      Analysis API       Investigation API
+          │                     │                     │
+          ▼                     ▼                     ▼
+   Security Event Service ──────┴──────────────► Retrieve Event
+          │                                           │
+          ▼                                           │
+      Repository                                      │
+          │                                           │
+          ▼                                           ▼
+     SQLAlchemy                              ┌───────────────────┐
+          │                                  │ Event Context     │
+          ▼                                  │ Builder           │
+       SQLite                                └─────────┬─────────┘
+                                                       │
+                                                       ▼
+                                                 EventContext
+                                                       │
+                                                       ▼
+                                               Security Analyzer
+                                                       │
+                                                       ▼
+                                                Risk Factor Engine
+                                                       │
+                    ┌──────────────────────────┬───────┴────────┬──────────────────────────┐
+                    ▼                          ▼                ▼                          ▼
+              Severity Factors         Historical Activity  Behavioral Activity     Event-Type Factors
+                    │                          │                │                          │
+                    └──────────────────────────┴───────┬────────┴──────────────────────────┘
+                                                       │
+                                                       ▼
+                                                 RiskFactor[]
+                                                       │
+                                                       ▼
+                                          Analysis Response Builder
+                                                       │
+                              ┌────────────────────────┼────────────────────────┐
+                              ▼                        ▼                        ▼
+                         Risk Score               Threat Type             Recommendation
+                              │                        │                        │
+                              └────────────────────────┼────────────────────────┘
+                                                       │
+                                                       ▼
+                                            SecurityAnalysisResponse
+
+
+                     Retrieve Event
+                           │
+                           ▼
+                    Candidate Retrieval
+                           │
+                ┌──────────┴──────────┐
+                ▼                     ▼
+           Source IP               Username
+                │                     │
+                └──────────┬──────────┘
+                           │
+                           ▼
+                 Event Correlation Service
+                           │
+                           ▼
+                     Related Events
+                           │
+              ┌────────────┴────────────┐
+              ▼                         ▼
+     Timeline Service          Prioritization Service
+              │                         │
+              ▼                         ├── Severity Impact
+       Investigation Timeline            │
+                                        ├── Correlation Impact
+                                        │
+                                        ├── Priority Score
+                                        │
+                                        ├── Priority Level
+                                        │
+                                        └── Priority Reasons
+                                                  │
+                                                  ▼
+                                           Prioritized Events
+
+
+SecurityAnalysisResponse + Related Events + Timeline + Prioritized Events
+                                  │
+                                  ▼
+                         Investigation Service
+                                  │
+                  ┌───────────────┼────────────────┐
+                  ▼               ▼                ▼
+               Evidence         Summary     Recommended Actions
+                  │               │                │
+                  └───────────────┼────────────────┘
+                                  │
+                                  ▼
+                   SecurityInvestigationResponse
+                                  │
+                                  ▼
+                      Investigation API Response
+
 
 Security Configuration
         │
-        └──────────────► Security Analyzer
+        └──────────────────────────────► Security Analyzer
+```
+
+### Security Analysis Configuration
+
+The deterministic security rules used by the analyzer are centralized in:
+
+```text
+app/core/security_config.py
 ```
 
 ### Security Analysis Configuration
@@ -344,6 +397,122 @@ The current correlation engine identifies related events using deterministic sig
 
 The investigated event itself is excluded from its related-event results.
 
+# Event Prioritization
+
+After related security events are identified, the investigation layer prioritizes them to help analysts determine which related events should be investigated first.
+
+The currently investigated event is not included in prioritization because it is already the primary focus of the investigation.
+
+The prioritization service operates only on related security events.
+
+## Priority Scoring
+
+Priority is calculated using two deterministic factors:
+
+```text
+Priority Score
+      =
+Severity Impact
+      +
+Correlation Impact
+```
+
+### Severity Impact
+
+| Severity | Priority Impact |
+| -------- | --------------- |
+| Critical | 70              |
+| High     | 50              |
+| Medium   | 30              |
+| Low      | 10              |
+
+### Correlation Impact
+
+Each correlation reason contributes:
+
+```text
++10 priority points
+```
+
+Examples:
+
+| Correlation Reasons     | Priority Impact |
+| ----------------------- | --------------- |
+| No correlation reasons  | 0               |
+| One correlation reason  | +10             |
+| Two correlation reasons | +20             |
+
+Example:
+
+```text
+Severity: Critical
+
+Correlation:
+- Same source IP
+- Same username
+
+Priority Score:
+
+70 + 20 = 90
+```
+
+## Priority Levels
+
+| Priority Score | Priority Level |
+| -------------- | -------------- |
+| 80+            | Critical       |
+| 60–79          | High           |
+| 30–59          | Medium         |
+| Below 30       | Low            |
+
+## Explainable Prioritization
+
+Each prioritized event includes explanations describing why it received its priority.
+
+Example:
+
+```json
+{
+  "event_id": 12,
+  "priority_score": 90,
+  "priority_level": "critical",
+  "priority_reasons": [
+    "Critical severity",
+    "Matched Same source IP and Same username"
+  ]
+}
+```
+
+This allows analysts to understand both the priority assigned to an event and the deterministic factors that contributed to that priority.
+
+## Prioritization Flow
+
+```text
+RelatedSecurityEvent
+        │
+        ▼
+Prioritization Service
+        │
+        ├── Determine Severity Impact
+        │
+        ├── Determine Correlation Impact
+        │
+        ├── Calculate Priority Score
+        │
+        ├── Determine Priority Level
+        │
+        ├── Build Priority Reasons
+        │
+        ▼
+PrioritizedSecurityEvent
+        │
+        ▼
+Sort by Priority Score
+        │
+        ▼
+Highest Priority → Lowest Priority
+```
+
 ## Correlation Reasons
 
 Each related event includes structured correlation reasons explaining why it is connected to the investigated event.
@@ -409,7 +578,7 @@ From the `backend` directory:
 pytest
 ```
 
-The project currently contains 57 automated tests.
+The project currently contains 74 automated tests.
 
 ## Unit Tests
 
@@ -460,6 +629,41 @@ Tests investigation response construction including:
 - Related-event inclusion
 - Correlation context in investigation summaries
 
+`tests/test_investigation_timeline_service.py`
+
+Tests investigation timeline generation including:
+
+- Current-event timeline inclusion
+- Related-event timeline inclusion
+- Chronological event sorting
+- Current-event identification
+- Correlation-reason preservation
+
+`tests/test_investigation_prioritization_service.py`
+
+Tests deterministic event prioritization including:
+
+- Severity priority impacts
+- Case-insensitive severity handling
+- Unknown severity handling
+- Correlation priority impacts
+- Priority-score calculation
+- Priority-level classification
+- Priority-reason generation
+- Single-event prioritization
+- Related-event prioritization
+- Descending priority sorting
+
+`tests/test_investigation_service.py`
+
+Also verifies:
+
+- Investigation timeline inclusion
+- Prioritized-event inclusion
+- Prioritized-event ordering
+- Priority scores in investigation responses
+- Priority levels in investigation responses
+
 ## API Integration Tests
 
 `tests/test_security_events.py`
@@ -468,38 +672,62 @@ Tests the complete FastAPI flow:
 
 ```text
 HTTP Request
-     ↓
+    │
+    ▼
 FastAPI Router
-     ↓
+    │
+    ▼
 Security Event Service
-     ↓
+    │
+    ▼
 Repository
-     ↓
+    │
+    ▼
 SQLite
-     ↓
+    │
+    ▼
 Security Event
-     │
-     ├── EventContext Builder
-     │        ↓
-     │   Security Analyzer
-     │        ↓
-     │   Risk Factors
-     │        ↓
-     │   SecurityAnalysisResponse
-     │
-     └── Candidate Retrieval
-              ├── Source IP
-              └── Username
-                    ↓
-           Event Correlation Service
-                    ↓
-             Related Events
-                    ↓
-          Investigation Service
-                    ↓
-     SecurityInvestigationResponse
-                    ↓
-             HTTP Response
+    │
+    ├── EventContext Builder
+    │         │
+    │         ▼
+    │   Security Analyzer
+    │         │
+    │         ▼
+    │   Risk Factors
+    │         │
+    │         ▼
+    │ SecurityAnalysisResponse
+    │
+    └── Candidate Retrieval
+              │
+       ┌──────┴──────┐
+       ▼             ▼
+   Source IP      Username
+       │             │
+       └──────┬──────┘
+              ▼
+   Event Correlation Service
+              │
+              ▼
+        Related Events
+              │
+       ┌──────┴───────────────┐
+       ▼                      ▼
+Timeline Service      Prioritization Service
+       │                      │
+       ▼                      ▼
+Investigation Timeline   Prioritized Events
+       │                      │
+       └───────────┬──────────┘
+                   ▼
+        Investigation Service
+                   │
+                   ▼
+    SecurityInvestigationResponse
+                   │
+                   ▼
+            HTTP Response
 ```
 
 # Running Locally
@@ -573,8 +801,10 @@ ai-security-copilot/
 | |   |    ├── event_context.py
 | |   |    ├── event_context_builder.py
 | |   |    ├── event_correlation_service.py
+| |   |    ├── investigation_prioritization_service.py
+| |   |    ├── investigation_service.py
+| |   |    ├── investigation_timeline_service.py
 | |   |    ├── security_analyzer.py
-| |   |    └── investigation_service.py
 | |   |    └── security_event_service.py
 │ │   |── database.py
 │ │   |── main.py
@@ -582,6 +812,8 @@ ai-security-copilot/
 │ ├── tests/
 | |   ├── conftest.py
 │ |   ├── test_event_correlation_service.py
+| |   ├── test_investigation_prioritization_service.py
+| |   ├── test_investigation_timeline_service.py
 | |   ├── test_investigation_service.py
 | |   ├── test_security_analyzer.py
 | |   └── test_security_events.py

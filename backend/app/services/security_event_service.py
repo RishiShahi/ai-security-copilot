@@ -148,6 +148,7 @@ def investigate_security_event_by_id(
     )
 
     return build_investigation_response(
+        event=event,
         analysis=analysis,
         related_events=related_events,
     )

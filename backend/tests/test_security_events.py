@@ -327,6 +327,189 @@ def test_investigate_security_event(client):
     )
 
 
+def test_investigation_response_contains_timeline(client):
+    create_response = client.post(
+        "/api/security/events",
+        json=create_test_event(),
+    )
+
+    assert create_response.status_code == 200
+
+    event_id = create_response.json()["id"]
+
+    investigation_response = client.get(
+        f"/api/security/events/{event_id}/investigation",
+    )
+
+    assert investigation_response.status_code == 200
+
+    data = investigation_response.json()
+
+    assert "timeline" in data
+    assert isinstance(data["timeline"], list)
+    assert len(data["timeline"]) == 1
+
+    timeline_event = data["timeline"][0]
+
+    assert timeline_event["event_id"] == event_id
+    assert timeline_event["is_current_event"] is True
+    assert timeline_event["correlation_reasons"] == []
+
+
+def test_investigation_timeline_contains_related_events(client):
+    first_event = create_test_event(
+        source_ip="185.23.45.10",
+        username="admin",
+    )
+
+    first_event["timestamp"] = datetime(
+        2026,
+        9,
+        3,
+        10,
+        0,
+        tzinfo=UTC,
+    ).isoformat()
+
+    first_response = client.post(
+        "/api/security/events",
+        json=first_event,
+    )
+
+    assert first_response.status_code == 200
+
+    second_event = create_test_event(
+        source_ip="185.23.45.10",
+        username="different-user",
+    )
+
+    second_event["timestamp"] = datetime(
+        2026,
+        9,
+        3,
+        10,
+        10,
+        tzinfo=UTC,
+    ).isoformat()
+
+    second_response = client.post(
+        "/api/security/events",
+        json=second_event,
+    )
+
+    assert second_response.status_code == 200
+
+    event_id = second_response.json()["id"]
+    first_event_id = first_response.json()["id"]
+
+    investigation_response = client.get(
+        f"/api/security/events/{event_id}/investigation",
+    )
+
+    assert investigation_response.status_code == 200
+
+    data = investigation_response.json()
+
+    assert len(data["timeline"]) == 2
+
+    timeline_event_ids = [
+        timeline_event["event_id"]
+        for timeline_event in data["timeline"]
+    ]
+
+    assert first_event_id in timeline_event_ids
+    assert event_id in timeline_event_ids
+
+    related_timeline_event = next(
+        timeline_event
+        for timeline_event in data["timeline"]
+        if timeline_event["event_id"] == first_event_id
+    )
+
+    assert related_timeline_event["is_current_event"] is False
+
+    assert related_timeline_event["correlation_reasons"] == [
+        "Same source IP",
+    ]
+
+def test_investigation_timeline_is_sorted_chronologically(client):
+    base_time = datetime(
+        2026,
+        9,
+        3,
+        12,
+        0,
+        tzinfo=UTC,
+    )
+
+    older_event = create_test_event(
+        source_ip="185.23.45.10",
+        username="admin",
+    )
+
+    older_event["timestamp"] = (
+        base_time - timedelta(minutes=10)
+    ).isoformat()
+
+    older_response = client.post(
+        "/api/security/events",
+        json=older_event,
+    )
+
+    assert older_response.status_code == 200
+
+    current_event = create_test_event(
+        source_ip="185.23.45.10",
+        username="different-user",
+    )
+
+    current_event["timestamp"] = base_time.isoformat()
+
+    current_response = client.post(
+        "/api/security/events",
+        json=current_event,
+    )
+
+    assert current_response.status_code == 200
+
+    newer_event = create_test_event(
+        source_ip="185.23.45.10",
+        username="another-user",
+    )
+
+    newer_event["timestamp"] = (
+        base_time + timedelta(minutes=10)
+    ).isoformat()
+
+    newer_response = client.post(
+        "/api/security/events",
+        json=newer_event,
+    )
+
+    assert newer_response.status_code == 200
+
+    current_event_id = current_response.json()["id"]
+
+    investigation_response = client.get(
+        f"/api/security/events/{current_event_id}/investigation",
+    )
+
+    assert investigation_response.status_code == 200
+
+    data = investigation_response.json()
+
+    timeline_event_ids = [
+        timeline_event["event_id"]
+        for timeline_event in data["timeline"]
+    ]
+
+    assert timeline_event_ids == [
+        older_response.json()["id"],
+        current_event_id,
+        newer_response.json()["id"],
+    ]
+
+
 def test_investigate_nonexistent_security_event(client):
     response = client.get(
         "/api/security/events/99999/investigation",

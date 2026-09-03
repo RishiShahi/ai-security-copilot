@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from app.models.security_event import SecurityEvent
 
 from app.schemas.investigation import (
     RelatedSecurityEvent,
@@ -14,6 +15,22 @@ from app.services.investigation_service import (
     build_investigation_summary,
 )
 
+def create_security_event() -> SecurityEvent:
+    """
+    Create a SecurityEvent instance for investigation tests.
+    """
+
+    return SecurityEvent(
+        id=1,
+        timestamp=datetime.now(UTC),
+        source="firewall",
+        event_type="failed_login",
+        severity="high",
+        source_ip="185.23.45.10",
+        username="admin",
+        message="Failed login attempt",
+        description="A failed login attempt was detected.",
+    )
 
 def create_analysis(
     risk_factors: list[RiskFactor] | None = None,
@@ -84,21 +101,26 @@ def test_build_investigation_summary():
 
 
 def test_build_investigation_response():
+    event = create_security_event()
+
     analysis = create_analysis()
 
     investigation = build_investigation_response(
+        event=event,
         analysis=analysis,
         related_events=[],
     )
 
     assert investigation.event_id == analysis.event_id
     assert investigation.related_events == []
-    assert investigation.event_id == analysis.event_id
     assert investigation.risk_score == analysis.risk_score
     assert investigation.risk_level == analysis.risk_level
     assert investigation.threat_type == analysis.threat_type
 
     assert len(investigation.evidence) == 2
+
+    assert investigation.timeline[0].event_id == event.id
+    assert investigation.timeline[0].is_current_event is True
 
     assert (
         investigation.recommended_actions
@@ -140,3 +162,79 @@ def test_build_investigation_summary_with_related_events():
     )
 
     assert "2 related security event(s)" in summary
+
+
+def test_build_investigation_response_prioritizes_related_events():
+    event = create_security_event()
+
+    analysis = create_analysis()
+
+    related_events = [
+        RelatedSecurityEvent(
+            event_id=2,
+            timestamp=datetime.now(UTC),
+            event_type="failed_login",
+            severity="low",
+            source_ip="185.23.45.10",
+            username="admin",
+            correlation_reasons=[
+                "Same source IP",
+            ],
+        ),
+        RelatedSecurityEvent(
+            event_id=3,
+            timestamp=datetime.now(UTC),
+            event_type="privilege_escalation",
+            severity="critical",
+            source_ip="185.23.45.10",
+            username="admin",
+            correlation_reasons=[
+                "Same source IP",
+                "Same username",
+            ],
+        ),
+        RelatedSecurityEvent(
+            event_id=4,
+            timestamp=datetime.now(UTC),
+            event_type="failed_login",
+            severity="medium",
+            source_ip="185.23.45.10",
+            username="admin",
+            correlation_reasons=[
+                "Same username",
+            ],
+        ),
+    ]
+
+    investigation = build_investigation_response(
+        event=event,
+        analysis=analysis,
+        related_events=related_events,
+    )
+
+    assert [
+        prioritized_event.event_id
+        for prioritized_event in investigation.prioritized_events
+    ] == [
+        3,
+        4,
+        2,
+    ]
+
+    assert [
+        prioritized_event.priority_score
+        for prioritized_event in investigation.prioritized_events
+    ] == [
+        90,
+        40,
+        20,
+    ]
+
+    assert [
+        prioritized_event.priority_level
+        for prioritized_event in investigation.prioritized_events
+    ] == [
+        "critical",
+        "medium",
+        "low",
+    ]
