@@ -32,6 +32,12 @@ class PrioritizedSecurityEvent(BaseModel):
     priority_level: str
     priority_reasons: list[str]
 
+
+class InvestigationFinding(BaseModel):
+    category: str
+    severity: str
+    description: str
+
 class SecurityInvestigationResponse(BaseModel):
     event_id: int
     summary: str
@@ -42,4 +48,5 @@ class SecurityInvestigationResponse(BaseModel):
     related_events: list[RelatedSecurityEvent]
     timeline: list[InvestigationTimelineEvent]
     prioritized_events: list[PrioritizedSecurityEvent]
+    findings: list[InvestigationFinding]
     recommended_actions: list[str]

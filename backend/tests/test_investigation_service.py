@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from app.models.security_event import SecurityEvent
 
 from app.schemas.investigation import (
+    PrioritizedSecurityEvent,
     RelatedSecurityEvent,
 )
 
@@ -11,6 +12,7 @@ from app.schemas.security_event import (
 )
 from app.services.investigation_service import (
     build_investigation_evidence,
+    build_investigation_findings,
     build_investigation_response,
     build_investigation_summary,
 )
@@ -238,3 +240,205 @@ def test_build_investigation_response_prioritizes_related_events():
         "medium",
         "low",
     ]
+
+
+def test_build_investigation_findings_for_critical_risk():
+    analysis = create_analysis()
+    analysis.risk_level = "critical"
+
+    findings = build_investigation_findings(
+        analysis=analysis,
+        prioritized_events=[],
+    )
+
+    assert len(findings) == 1
+
+    assert findings[0].category == "risk"
+    assert findings[0].severity == "critical"
+    assert "critical-risk" in findings[0].description
+
+
+def test_build_investigation_findings_for_high_risk():
+    analysis = create_analysis()
+    analysis.risk_level = "high"
+
+    findings = build_investigation_findings(
+        analysis=analysis,
+        prioritized_events=[],
+    )
+
+    assert len(findings) == 1
+
+    assert findings[0].category == "risk"
+    assert findings[0].severity == "high"
+    assert "high-risk" in findings[0].description
+
+
+def test_build_investigation_findings_for_critical_event():
+    analysis = create_analysis()
+
+    prioritized_events = [
+        PrioritizedSecurityEvent(
+            event_id=2,
+            priority_score=90,
+            priority_level="critical",
+            priority_reasons=[
+                "Critical severity",
+                "Strong correlation",
+            ],
+        ),
+    ]
+
+    findings = build_investigation_findings(
+        analysis=analysis,
+        prioritized_events=prioritized_events,
+    )
+
+    assert len(findings) == 1
+
+    assert findings[0].category == "priority"
+    assert findings[0].severity == "critical"
+    assert "1 critical-priority" in findings[0].description
+
+
+def test_build_investigation_findings_for_high_priority_events():
+    analysis = create_analysis()
+
+    prioritized_events = [
+        PrioritizedSecurityEvent(
+            event_id=2,
+            priority_score=70,
+            priority_level="high",
+            priority_reasons=[
+                "High severity",
+            ],
+        ),
+        PrioritizedSecurityEvent(
+            event_id=3,
+            priority_score=60,
+            priority_level="high",
+            priority_reasons=[
+                "Strong correlation",
+            ],
+        ),
+    ]
+
+    findings = build_investigation_findings(
+        analysis=analysis,
+        prioritized_events=prioritized_events,
+    )
+
+    assert len(findings) == 1
+
+    assert findings[0].category == "priority"
+    assert findings[0].severity == "high"
+    assert "2 high-priority" in findings[0].description
+
+
+def test_build_investigation_findings_for_multiple_related_events():
+    analysis = create_analysis()
+
+    prioritized_events = [
+        PrioritizedSecurityEvent(
+            event_id=2,
+            priority_score=20,
+            priority_level="low",
+            priority_reasons=[
+                "Low severity",
+            ],
+        ),
+        PrioritizedSecurityEvent(
+            event_id=3,
+            priority_score=40,
+            priority_level="medium",
+            priority_reasons=[
+                "Medium severity",
+            ],
+        ),
+        PrioritizedSecurityEvent(
+            event_id=4,
+            priority_score=60,
+            priority_level="high",
+            priority_reasons=[
+                "High severity",
+            ],
+        ),
+    ]
+
+    findings = build_investigation_findings(
+        analysis=analysis,
+        prioritized_events=prioritized_events,
+    )
+
+    assert len(findings) == 2
+
+    assert findings[0].category == "priority"
+    assert findings[0].severity == "high"
+
+    assert findings[1].category == "correlation"
+    assert findings[1].severity == "medium"
+    assert "Multiple related security events" in findings[1].description
+
+
+def test_build_investigation_findings_with_no_significant_activity():
+    analysis = create_analysis()
+    analysis.risk_level = "low"
+
+    findings = build_investigation_findings(
+        analysis=analysis,
+        prioritized_events=[],
+    )
+
+    assert findings == []
+
+
+def test_build_investigation_summary_for_critical_risk():
+    analysis = create_analysis()
+    analysis.risk_level = "critical"
+
+    summary = build_investigation_summary(
+        analysis=analysis,
+        related_events=[],
+    )
+
+    assert "Critical-risk activity requires immediate attention." in summary
+
+
+def test_build_investigation_summary_for_high_risk():
+    analysis = create_analysis()
+    analysis.risk_level = "high"
+
+    summary = build_investigation_summary(
+        analysis=analysis,
+        related_events=[],
+    )
+
+    assert "High-risk activity requires prompt investigation." in summary
+
+
+def test_build_investigation_summary_with_correlated_activity():
+    analysis = create_analysis()
+
+    related_events = [
+        RelatedSecurityEvent(
+            event_id=2,
+            timestamp=datetime.now(UTC),
+            event_type="failed_login",
+            severity="medium",
+            source_ip="185.23.45.10",
+            username="admin",
+            correlation_reasons=[
+                "Same source IP",
+            ],
+        ),
+    ]
+
+    summary = build_investigation_summary(
+        analysis=analysis,
+        related_events=related_events,
+    )
+
+    assert (
+        "Related activity should be reviewed for "
+        "potentially correlated behavior."
+    ) in summary

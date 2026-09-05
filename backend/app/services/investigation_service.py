@@ -1,6 +1,8 @@
 from app.models.security_event import SecurityEvent
 from app.schemas.investigation import (
     InvestigationEvidence,
+    InvestigationFinding,
+    PrioritizedSecurityEvent,
     RelatedSecurityEvent,
     SecurityInvestigationResponse,
 )
@@ -50,7 +52,7 @@ def build_investigation_summary(
         related_events
     )
 
-    return (
+    summary = (
         f"The event was classified as {analysis.threat_type} "
         f"with a {analysis.risk_level} risk level and a risk "
         f"score of {analysis.risk_score}. "
@@ -58,6 +60,111 @@ def build_investigation_summary(
         f"risk factor(s) contributing to the assessment and "
         f"{related_event_count} related security event(s)."
     )
+
+    if analysis.risk_level == "critical":
+        summary += (
+            " Critical-risk activity requires immediate attention."
+        )
+
+    elif analysis.risk_level == "high":
+        summary += (
+            " High-risk activity requires prompt investigation."
+        )
+
+    elif related_event_count > 0:
+        summary += (
+            " Related activity should be reviewed for "
+            "potentially correlated behavior."
+        )
+
+    return summary
+
+
+def build_investigation_findings(
+    analysis: SecurityAnalysisResponse,
+    prioritized_events: list,
+) -> list[InvestigationFinding]:
+    """
+    Build deterministic investigation findings from
+    security analysis and event prioritization results.
+    """
+
+    findings: list[InvestigationFinding] = []
+
+    if analysis.risk_level == "critical":
+        findings.append(
+            InvestigationFinding(
+                category="risk",
+                severity="critical",
+                description=(
+                    "The investigation contains critical-risk "
+                    "security activity requiring immediate attention."
+                ),
+            )
+        )
+
+    elif analysis.risk_level == "high":
+        findings.append(
+            InvestigationFinding(
+                category="risk",
+                severity="high",
+                description=(
+                    "The investigation contains high-risk "
+                    "security activity requiring prompt investigation."
+                ),
+            )
+        )
+
+    critical_events = [
+        event
+        for event in prioritized_events
+        if event.priority_level == "critical"
+    ]
+
+    high_events = [
+        event
+        for event in prioritized_events
+        if event.priority_level == "high"
+    ]
+
+    if critical_events:
+        findings.append(
+            InvestigationFinding(
+                category="priority",
+                severity="critical",
+                description=(
+                    f"{len(critical_events)} critical-priority "
+                    "related event(s) were identified."
+                ),
+            )
+        )
+
+    if high_events:
+        findings.append(
+            InvestigationFinding(
+                category="priority",
+                severity="high",
+                description=(
+                    f"{len(high_events)} high-priority "
+                    "related event(s) were identified."
+                ),
+            )
+        )
+
+    if len(prioritized_events) >= 3:
+        findings.append(
+            InvestigationFinding(
+                category="correlation",
+                severity="medium",
+                description=(
+                    "Multiple related security events were "
+                    "identified, indicating correlated activity."
+                ),
+            )
+        )
+
+    return findings
+
 
 def build_investigation_response(
     event: SecurityEvent,
@@ -88,6 +195,11 @@ def build_investigation_response(
         related_events=related_events,
     )
 
+    findings = build_investigation_findings(
+        analysis=analysis,
+        prioritized_events=prioritized_events,
+    )
+
     return SecurityInvestigationResponse(
         event_id=analysis.event_id,
         summary=summary,
@@ -98,6 +210,7 @@ def build_investigation_response(
         related_events=related_events,
         timeline=timeline,
         prioritized_events=prioritized_events,
+        findings=findings,
         recommended_actions=[
             analysis.recommendation,
         ],

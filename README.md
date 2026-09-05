@@ -36,7 +36,7 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - API integration tests
 - 47 automated tests passing
 
-### Week 3 — Investigation Layer (In Progress) ✅
+### Week 3 — Investigation Layer (In Progress) 🚧
 
 - Analyst-oriented security investigations
 - Structured investigation evidence
@@ -61,7 +61,12 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Event prioritization unit tests
 - Investigation service integration tests
 - Investigation API integration tests
-- 74 automated tests passing
+- Deterministic investigation findings
+- Risk-based investigation findings
+- Priority-based investigation findings
+- Correlated-activity findings
+- Analyst-oriented investigation summaries
+- 83 automated tests passing
 
 ---
 
@@ -185,34 +190,31 @@ The backend follows a layered architecture with separate deterministic analysis,
 
 
 SecurityAnalysisResponse + Related Events + Timeline + Prioritized Events
-                                  │
-                                  ▼
-                         Investigation Service
-                                  │
-                  ┌───────────────┼────────────────┐
-                  ▼               ▼                ▼
-               Evidence         Summary     Recommended Actions
-                  │               │                │
-                  └───────────────┼────────────────┘
-                                  │
-                                  ▼
-                   SecurityInvestigationResponse
-                                  │
-                                  ▼
+
+                         │
+                         ▼
+
+                  Investigation Service
+
+             ┌───────────────┼────────────────────────────┐
+             ▼               ▼                ▼           ▼
+
+          Evidence        Summary      Investigation   Recommended
+                                      Findings           Actions
+             │               │                │              │
+             └───────────────┴────────────────┴──────────────┘
+                             │
+                             ▼
+
+                  SecurityInvestigationResponse
+                             │
+                             ▼
                       Investigation API Response
 
 
 Security Configuration
         │
         └──────────────────────────────► Security Analyzer
-```
-
-### Security Analysis Configuration
-
-The deterministic security rules used by the analyzer are centralized in:
-
-```text
-app/core/security_config.py
 ```
 
 ### Security Analysis Configuration
@@ -513,6 +515,60 @@ Sort by Priority Score
 Highest Priority → Lowest Priority
 ```
 
+## Investigation Findings
+
+The investigation layer derives deterministic, analyst-oriented findings from the existing security analysis and event prioritization results.
+
+Investigation findings provide an additional interpretation layer without duplicating the underlying risk-analysis logic.
+
+### Investigation Finding Structure
+
+Each investigation finding contains:
+
+- **Category** — Identifies the source of the finding, such as risk, priority, or correlation
+- **Severity** — Indicates the importance of the finding
+- **Description** — Provides a human-readable explanation
+
+### Finding Categories
+
+The investigation layer currently generates findings for:
+
+| Category      | Description                                                  |
+| ------------- | ------------------------------------------------------------ |
+| `risk`        | Highlights critical or high-risk investigation results       |
+| `priority`    | Identifies critical or high-priority related events          |
+| `correlation` | Highlights investigations containing multiple related events |
+
+### Deterministic Finding Rules
+
+Investigation findings are generated from existing structured data.
+
+| Condition                              | Finding                                             |
+| -------------------------------------- | --------------------------------------------------- |
+| Risk level = `critical`                | Critical-risk activity requires immediate attention |
+| Risk level = `high`                    | High-risk activity requires prompt investigation    |
+| Critical-priority related events exist | Critical-priority activity is highlighted           |
+| High-priority related events exist     | High-priority activity is highlighted               |
+| 3 or more prioritized related events   | Correlated activity is highlighted                  |
+| No significant activity                | No additional finding is generated                  |
+
+The findings layer does not independently calculate risk. It interprets the outputs produced by the deterministic analysis and prioritization layers.
+
+### Analyst-Oriented Investigation Summary
+
+The investigation summary combines:
+
+- Threat classification
+- Risk level
+- Risk score
+- Number of risk factors
+- Number of related events
+- Significant investigation findings
+
+The summary adds contextual interpretation for high- and critical-risk investigations and correlated activity while remaining deterministic and explainable.
+
+This provides a structured foundation for the future AI investigation layer, where an LLM can consume the existing evidence, timeline, prioritized events, and findings rather than independently determining security risk.
+
 ## Correlation Reasons
 
 Each related event includes structured correlation reasons explaining why it is connected to the investigated event.
@@ -578,7 +634,7 @@ From the `backend` directory:
 pytest
 ```
 
-The project currently contains 74 automated tests.
+The project currently contains 83 automated tests.
 
 ## Unit Tests
 
@@ -628,6 +684,14 @@ Tests investigation response construction including:
 - Investigation response construction
 - Related-event inclusion
 - Correlation context in investigation summaries
+- Investigation finding generation
+- Critical-risk investigation findings
+- High-risk investigation findings
+- Critical-priority event findings
+- High-priority event findings
+- Correlated-activity findings
+- No-significant-activity handling
+- Analyst-oriented summary generation
 
 `tests/test_investigation_timeline_service.py`
 
