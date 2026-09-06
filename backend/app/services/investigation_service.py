@@ -80,9 +80,71 @@ def build_investigation_summary(
     return summary
 
 
+def build_priority_evidence(
+    events: list[PrioritizedSecurityEvent],
+) -> list[InvestigationEvidence]:
+    """
+    Convert prioritized security events into structured
+    investigation evidence.
+    """
+
+    evidence: list[InvestigationEvidence] = []
+
+    for event in events:
+        evidence.append(
+            InvestigationEvidence(
+                category="priority_score",
+                impact=event.priority_score,
+                description=(
+                    f"Related event {event.event_id} received "
+                    f"a priority score of {event.priority_score}."
+                ),
+            )
+        )
+
+        for reason in event.priority_reasons:
+            evidence.append(
+                InvestigationEvidence(
+                    category="priority_reason",
+                    impact=0,
+                    description=(
+                        f"Related event {event.event_id}: {reason}"
+                    ),
+                )
+            )
+
+    return evidence
+
+def build_correlation_evidence(
+    related_events: list[RelatedSecurityEvent],
+) -> list[InvestigationEvidence]:
+    """
+    Convert related security events into structured
+    investigation evidence based on correlation reasons.
+    """
+
+    evidence: list[InvestigationEvidence] = []
+
+    for event in related_events:
+        for reason in event.correlation_reasons:
+            evidence.append(
+                InvestigationEvidence(
+                    category="correlation_reason",
+                    impact=0,
+                    description=(
+                        f"Related event {event.event_id}: {reason}"
+                    ),
+                )
+            )
+
+    return evidence
+
+
 def build_investigation_findings(
     analysis: SecurityAnalysisResponse,
     prioritized_events: list,
+    evidence: list[InvestigationEvidence] | None = None,
+    related_events: list[RelatedSecurityEvent] | None = None,
 ) -> list[InvestigationFinding]:
     """
     Build deterministic investigation findings from
@@ -90,6 +152,12 @@ def build_investigation_findings(
     """
 
     findings: list[InvestigationFinding] = []
+
+    if evidence is None:
+        evidence = []
+
+    if related_events is None:
+        related_events = []
 
     if analysis.risk_level == "critical":
         findings.append(
@@ -100,6 +168,7 @@ def build_investigation_findings(
                     "The investigation contains critical-risk "
                     "security activity requiring immediate attention."
                 ),
+                evidence=evidence,
             )
         )
 
@@ -112,6 +181,7 @@ def build_investigation_findings(
                     "The investigation contains high-risk "
                     "security activity requiring prompt investigation."
                 ),
+                evidence=evidence,
             )
         )
 
@@ -127,6 +197,10 @@ def build_investigation_findings(
         if event.priority_level == "high"
     ]
 
+    critical_priority_evidence = build_priority_evidence(
+        critical_events
+    )
+
     if critical_events:
         findings.append(
             InvestigationFinding(
@@ -136,6 +210,7 @@ def build_investigation_findings(
                     f"{len(critical_events)} critical-priority "
                     "related event(s) were identified."
                 ),
+                evidence = critical_priority_evidence,
             )
         )
 
@@ -148,10 +223,31 @@ def build_investigation_findings(
                     f"{len(high_events)} high-priority "
                     "related event(s) were identified."
                 ),
+                evidence = critical_priority_evidence,
             )
         )
 
+    if (
+        analysis.risk_level == "low"
+        and not prioritized_events
+    ):
+        findings.append(
+            InvestigationFinding(
+                category="activity",
+                severity="low",
+                description=(
+                    "No significant security activity was "
+                    "identified during the investigation."
+                ),
+                evidence=[],
+            )
+    )
+
     if len(prioritized_events) >= 3:
+        correlation_evidence = build_correlation_evidence(
+            related_events=related_events,
+        )
+
         findings.append(
             InvestigationFinding(
                 category="correlation",
@@ -160,6 +256,7 @@ def build_investigation_findings(
                     "Multiple related security events were "
                     "identified, indicating correlated activity."
                 ),
+                evidence=correlation_evidence,
             )
         )
 
@@ -198,6 +295,8 @@ def build_investigation_response(
     findings = build_investigation_findings(
         analysis=analysis,
         prioritized_events=prioritized_events,
+        evidence=evidence,
+        related_events=related_events,
     )
 
     return SecurityInvestigationResponse(

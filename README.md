@@ -34,9 +34,9 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Direct unit tests for analysis response construction
 - Unit tests
 - API integration tests
-- 47 automated tests passing
+- 47 automated tests passing at the end of Weeks 1–2
 
-### Week 3 — Investigation Layer (In Progress) 🚧
+**### Week 3 — Investigation Layer (In Progress) 🚧**
 
 - Analyst-oriented security investigations
 - Structured investigation evidence
@@ -65,8 +65,14 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Risk-based investigation findings
 - Priority-based investigation findings
 - Correlated-activity findings
+- No-significant-activity findings
+- Evidence-backed investigation findings
+- Risk-factor evidence mapping
+- Priority score and reason evidence
+- Correlation reason evidence
 - Analyst-oriented investigation summaries
-- 83 automated tests passing
+- Investigation evidence unit tests
+- 87 automated tests passing
 
 ---
 
@@ -190,26 +196,29 @@ The backend follows a layered architecture with separate deterministic analysis,
 
 
 SecurityAnalysisResponse + Related Events + Timeline + Prioritized Events
+                     │
+                     ▼
 
-                         │
-                         ▼
+              Investigation Service
 
-                  Investigation Service
-
-             ┌───────────────┼────────────────────────────┐
-             ▼               ▼                ▼           ▼
-
-          Evidence        Summary      Investigation   Recommended
-                                      Findings           Actions
-             │               │                │              │
-             └───────────────┴────────────────┴──────────────┘
-                             │
-                             ▼
-
-                  SecurityInvestigationResponse
-                             │
-                             ▼
-                      Investigation API Response
+         ┌───────────────┼────────────────────────────┐
+         ▼               ▼               ▼            ▼
+      Evidence         Summary      Investigation  Recommended
+                                         Findings      Actions
+                                            │
+                                            ▼
+                                     Finding Evidence
+                                            │
+                       ┌────────────────────┼────────────────────┐
+                       ▼                    ▼                    ▼
+                  Risk Evidence      Priority Evidence    Correlation Evidence
+                       │                    │                    │
+                       └────────────────────┼────────────────────┘
+                                            ▼
+                              SecurityInvestigationResponse
+                                            │
+                                            ▼
+                                  Investigation API Response
 
 
 Security Configuration
@@ -515,46 +524,126 @@ Sort by Priority Score
 Highest Priority → Lowest Priority
 ```
 
-## Investigation Findings
+**## Investigation Findings**
 
-The investigation layer derives deterministic, analyst-oriented findings from the existing security analysis and event prioritization results.
+The investigation layer derives deterministic, analyst-oriented findings from the existing security analysis, event correlation, and event prioritization results.
 
-Investigation findings provide an additional interpretation layer without duplicating the underlying risk-analysis logic.
+Investigation findings provide an additional interpretation layer without duplicating the underlying risk-analysis or prioritization logic.
 
-### Investigation Finding Structure
+**### Investigation Finding Structure**
 
 Each investigation finding contains:
 
-- **Category** — Identifies the source of the finding, such as risk, priority, or correlation
+- **Category** — Identifies the source or type of the finding, such as risk, priority, correlation, or activity
 - **Severity** — Indicates the importance of the finding
 - **Description** — Provides a human-readable explanation
+- **Evidence** — Contains the deterministic evidence supporting the finding
 
-### Finding Categories
+Investigation findings are therefore traceable to structured evidence already produced by the investigation pipeline.
+
+**### Finding Categories**
 
 The investigation layer currently generates findings for:
 
-| Category      | Description                                                  |
-| ------------- | ------------------------------------------------------------ |
-| `risk`        | Highlights critical or high-risk investigation results       |
-| `priority`    | Identifies critical or high-priority related events          |
-| `correlation` | Highlights investigations containing multiple related events |
+| Category      | Description                                                       |
+| ------------- | ----------------------------------------------------------------- |
+| `risk`        | Highlights critical or high-risk investigation results            |
+| `priority`    | Identifies critical or high-priority related events               |
+| `correlation` | Highlights investigations containing multiple related events      |
+| `activity`    | Communicates that no significant security activity was identified |
 
-### Deterministic Finding Rules
+**### Finding Evidence**
+
+Investigation findings are backed by deterministic evidence derived from existing investigation data.
+
+Risk findings use the risk factors generated by the security analyzer.
+
+Priority findings use evidence derived from:
+
+- Priority scores
+- Priority reasons
+- Related event identifiers
+
+Correlation findings use evidence derived from:
+
+- Correlation reasons
+- Related event identifiers
+
+This creates an explicit evidence chain:
+
+```text
+Security Analysis
+       │
+       ▼
+Risk Factors
+       │
+       ▼
+Investigation Evidence
+       │
+       ▼
+Risk Finding
+
+
+Related Events
+       │
+       ├───────────────┐
+       ▼               ▼
+Correlation       Prioritization
+Reasons           Score + Reasons
+       │               │
+       ▼               ▼
+Correlation       Priority Evidence
+Evidence               │
+       │               ▼
+       ▼          Priority Finding
+Correlation
+Finding
+```
+
+This design allows analysts to understand not only what the investigation concluded, but also which deterministic evidence supports each finding.
+
+**### Deterministic Finding Rules**
 
 Investigation findings are generated from existing structured data.
 
-| Condition                              | Finding                                             |
-| -------------------------------------- | --------------------------------------------------- |
-| Risk level = `critical`                | Critical-risk activity requires immediate attention |
-| Risk level = `high`                    | High-risk activity requires prompt investigation    |
-| Critical-priority related events exist | Critical-priority activity is highlighted           |
-| High-priority related events exist     | High-priority activity is highlighted               |
-| 3 or more prioritized related events   | Correlated activity is highlighted                  |
-| No significant activity                | No additional finding is generated                  |
+| Condition                                          | Finding                                             |
+| -------------------------------------------------- | --------------------------------------------------- |
+| Risk level = `critical`                            | Critical-risk activity requires immediate attention |
+| Risk level = `high`                                | High-risk activity requires prompt investigation    |
+| Critical-priority related events exist             | Critical-priority activity is highlighted           |
+| High-priority related events exist                 | High-priority activity is highlighted               |
+| 3 or more prioritized related events               | Correlated activity is highlighted                  |
+| Risk level = `low` and no prioritized events exist | No significant security activity is identified      |
 
-The findings layer does not independently calculate risk. It interprets the outputs produced by the deterministic analysis and prioritization layers.
+The findings layer does not independently calculate risk or priority. It interprets the outputs produced by the deterministic analysis, correlation, and prioritization layers.
 
-### Analyst-Oriented Investigation Summary
+**### Evidence Traceability**
+
+The investigation pipeline maintains deterministic traceability between the underlying security signals and analyst-oriented findings.
+
+```text
+Risk Factors
+     ↓
+Risk Evidence
+     ↓
+Risk Finding
+
+Priority Score + Priority Reasons
+     ↓
+Priority Evidence
+     ↓
+Priority Finding
+
+Correlation Reasons
+     ↓
+Correlation Evidence
+     ↓
+Correlation Finding
+```
+
+This ensures that investigation findings remain explainable and auditable.
+
+**### Analyst-Oriented Investigation Summary**
 
 The investigation summary combines:
 
@@ -566,6 +655,8 @@ The investigation summary combines:
 - Significant investigation findings
 
 The summary adds contextual interpretation for high- and critical-risk investigations and correlated activity while remaining deterministic and explainable.
+
+For investigations with no significant activity, the investigation findings explicitly communicate that no significant security activity was identified.
 
 This provides a structured foundation for the future AI investigation layer, where an LLM can consume the existing evidence, timeline, prioritized events, and findings rather than independently determining security risk.
 
@@ -634,7 +725,7 @@ From the `backend` directory:
 pytest
 ```
 
-The project currently contains 83 automated tests.
+The project currently contains 87 automated tests.
 
 ## Unit Tests
 
@@ -680,18 +771,33 @@ Tests deterministic event correlation logic including:
 Tests investigation response construction including:
 
 - Risk-factor conversion into investigation evidence
+- Priority evidence generation
+- Correlation evidence generation
+- Empty evidence handling
 - Deterministic investigation summary generation
 - Investigation response construction
 - Related-event inclusion
 - Correlation context in investigation summaries
 - Investigation finding generation
+- Evidence-backed investigation findings
 - Critical-risk investigation findings
 - High-risk investigation findings
 - Critical-priority event findings
 - High-priority event findings
 - Correlated-activity findings
-- No-significant-activity handling
+- No-significant-activity finding
 - Analyst-oriented summary generation
+- Priority evidence traceability
+- Correlation evidence traceability
+
+Also verifies:
+
+- Investigation timeline inclusion
+- Prioritized-event inclusion
+- Prioritized-event ordering
+- Priority scores in investigation responses
+- Priority levels in investigation responses
+- Investigation finding evidence
 
 `tests/test_investigation_timeline_service.py`
 

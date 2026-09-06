@@ -37,6 +37,7 @@ class InvestigationFinding(BaseModel):
     category: str
     severity: str
     description: str
+    evidence: list[InvestigationEvidence]
 
 class SecurityInvestigationResponse(BaseModel):
     event_id: int

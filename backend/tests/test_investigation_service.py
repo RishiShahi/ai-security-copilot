@@ -15,6 +15,8 @@ from app.services.investigation_service import (
     build_investigation_findings,
     build_investigation_response,
     build_investigation_summary,
+    build_priority_evidence,
+    build_correlation_evidence,
 )
 
 def create_security_event() -> SecurityEvent:
@@ -389,7 +391,105 @@ def test_build_investigation_findings_with_no_significant_activity():
         prioritized_events=[],
     )
 
-    assert findings == []
+    assert len(findings) == 1
+
+    assert findings[0].category == "activity"
+    assert findings[0].severity == "low"
+    assert findings[0].description == (
+        "No significant security activity was "
+        "identified during the investigation."
+    )
+    assert findings[0].evidence == []
+
+
+def test_build_priority_evidence():
+    prioritized_events = [
+        PrioritizedSecurityEvent(
+            event_id=2,
+            priority_score=90,
+            priority_level="critical",
+            priority_reasons=[
+                "Critical severity",
+                "Strong correlation",
+            ],
+        ),
+    ]
+
+    evidence = build_priority_evidence(
+        events=prioritized_events,
+    )
+
+    assert len(evidence) == 3
+
+    assert evidence[0].category == "priority_score"
+    assert evidence[0].impact == 90
+    assert evidence[0].description == (
+        "Related event 2 received a priority score of 90."
+    )
+
+    assert evidence[1].category == "priority_reason"
+    assert evidence[1].impact == 0
+    assert evidence[1].description == (
+        "Related event 2: Critical severity"
+    )
+
+    assert evidence[2].category == "priority_reason"
+    assert evidence[2].impact == 0
+    assert evidence[2].description == (
+        "Related event 2: Strong correlation"
+    )
+
+
+def test_build_priority_evidence_with_no_events():
+    evidence = build_priority_evidence(
+        events=[],
+    )
+
+    assert evidence == []
+
+
+def test_build_correlation_evidence():
+    related_events = [
+        RelatedSecurityEvent(
+            event_id=2,
+            timestamp=datetime.now(UTC),
+            event_type="failed_login",
+            severity="high",
+            source_ip="185.23.45.10",
+            username="admin",
+            correlation_reasons=[
+                "Same source IP",
+                "Same username",
+            ],
+        ),
+    ]
+
+    evidence = build_correlation_evidence(
+        related_events=related_events,
+    )
+
+    assert len(evidence) == 2
+
+    assert evidence[0].category == "correlation_reason"
+    assert evidence[0].impact == 0
+    assert evidence[0].description == (
+        "Related event 2: Same source IP"
+    )
+
+    assert evidence[1].category == "correlation_reason"
+    assert evidence[1].impact == 0
+    assert evidence[1].description == (
+        "Related event 2: Same username"
+    )
+
+def test_build_correlation_evidence_with_no_events():
+    evidence = build_correlation_evidence(
+        related_events=[],
+    )
+
+    assert evidence == []
+
+
 
 
 def test_build_investigation_summary_for_critical_risk():
