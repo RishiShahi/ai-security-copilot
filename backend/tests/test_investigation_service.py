@@ -490,6 +490,73 @@ def test_build_correlation_evidence_with_no_events():
     assert evidence == []
 
 
+def test_build_investigation_findings_uses_correct_priority_evidence():
+
+    analysis = create_analysis()
+    analysis.risk_level = "low"
+
+    prioritized_events = [
+        PrioritizedSecurityEvent(
+            event_id=2,
+            priority_score=95,
+            priority_level="critical",
+            priority_reasons=[
+                "Critical severity",
+            ],
+        ),
+        PrioritizedSecurityEvent(
+            event_id=3,
+            priority_score=80,
+            priority_level="high",
+            priority_reasons=[
+                "High severity",
+                "Same source IP",
+            ],
+        ),
+    ]
+
+    findings = build_investigation_findings(
+        analysis=analysis,
+        prioritized_events=prioritized_events,
+    )
+
+    assert len(findings) == 2
+
+    critical_finding = findings[0]
+    high_finding = findings[1]
+
+    assert critical_finding.category == "priority"
+    assert critical_finding.severity == "critical"
+
+    assert high_finding.category == "priority"
+    assert high_finding.severity == "high"
+
+    assert critical_finding.evidence[0].category == "priority_score"
+    assert critical_finding.evidence[0].impact == 95
+    assert critical_finding.evidence[0].description == (
+        "Related event 2 received a priority score of 95."
+    )
+
+    assert critical_finding.evidence[1].category == "priority_reason"
+    assert critical_finding.evidence[1].description == (
+        "Related event 2: Critical severity"
+    )
+
+    assert high_finding.evidence[0].category == "priority_score"
+    assert high_finding.evidence[0].impact == 80
+    assert high_finding.evidence[0].description == (
+        "Related event 3 received a priority score of 80."
+    )
+
+    assert high_finding.evidence[1].category == "priority_reason"
+    assert high_finding.evidence[1].description == (
+        "Related event 3: High severity"
+    )
+
+    assert high_finding.evidence[2].category == "priority_reason"
+    assert high_finding.evidence[2].description == (
+        "Related event 3: Same source IP"
+    )
 
 
 def test_build_investigation_summary_for_critical_risk():

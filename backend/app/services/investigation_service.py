@@ -142,7 +142,7 @@ def build_correlation_evidence(
 
 def build_investigation_findings(
     analysis: SecurityAnalysisResponse,
-    prioritized_events: list,
+    prioritized_events: list[PrioritizedSecurityEvent],
     evidence: list[InvestigationEvidence] | None = None,
     related_events: list[RelatedSecurityEvent] | None = None,
 ) -> list[InvestigationFinding]:
@@ -201,6 +201,10 @@ def build_investigation_findings(
         critical_events
     )
 
+    high_priority_evidence = build_priority_evidence(
+        high_events
+    )   
+
     if critical_events:
         findings.append(
             InvestigationFinding(
@@ -223,7 +227,7 @@ def build_investigation_findings(
                     f"{len(high_events)} high-priority "
                     "related event(s) were identified."
                 ),
-                evidence = critical_priority_evidence,
+                evidence = high_priority_evidence,
             )
         )
 

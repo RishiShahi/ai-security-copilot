@@ -72,7 +72,7 @@ The project combines a FastAPI backend, persistent security-event storage, deter
 - Correlation reason evidence
 - Analyst-oriented investigation summaries
 - Investigation evidence unit tests
-- 87 automated tests passing
+- 88 automated tests passing
 
 ---
 
@@ -563,6 +563,9 @@ Priority findings use evidence derived from:
 - Priority scores
 - Priority reasons
 - Related event identifiers
+- Priority evidence is scoped to the corresponding priority level
+- Critical-priority findings contain evidence from critical-priority events
+- High-priority findings contain evidence from high-priority events
 
 Correlation findings use evidence derived from:
 
@@ -788,6 +791,8 @@ Tests investigation response construction including:
 - No-significant-activity finding
 - Analyst-oriented summary generation
 - Priority evidence traceability
+- Priority finding evidence isolation
+- Critical and high priority evidence ownership
 - Correlation evidence traceability
 
 Also verifies:
