@@ -728,7 +728,7 @@ From the `backend` directory:
 pytest
 ```
 
-The project currently contains 87 automated tests.
+The project currently contains 88 automated tests.
 
 ## Unit Tests
 
