@@ -671,3 +671,66 @@ def test_investigate_security_event_with_related_ip_and_username(
         "Same source IP",
         "Same username",
     ]
+
+
+def test_get_ai_investigation_context(client):
+    create_response = client.post(
+        "/api/security/events",
+        json=create_test_event(),
+    )
+
+    assert create_response.status_code == 200
+
+    event_id = create_response.json()["id"]
+
+    response = client.get(
+        f"/api/security/events/{event_id}/ai-context",
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["event"]["event_id"] == event_id
+
+    assert data["risk_assessment"]["risk_score"] == 95
+    assert data["risk_assessment"]["risk_level"] == "critical"
+    assert data["risk_assessment"]["threat_type"] == (
+        "authentication_attack"
+    )
+
+    assert "risk_factors" in data["risk_assessment"]
+    assert isinstance(
+        data["risk_assessment"]["risk_factors"],
+        list,
+    )
+
+    assert "evidence" in data
+    assert isinstance(data["evidence"], list)
+
+    assert "related_events" in data
+    assert isinstance(data["related_events"], list)
+
+    assert "timeline" in data
+    assert isinstance(data["timeline"], list)
+
+    assert "prioritized_events" in data
+    assert isinstance(data["prioritized_events"], list)
+
+    assert "findings" in data
+    assert isinstance(data["findings"], list)
+
+    assert "recommended_actions" in data
+    assert isinstance(data["recommended_actions"], list)
+
+
+def test_get_ai_investigation_context_for_nonexistent_event(client):
+    response = client.get(
+        "/api/security/events/9999/ai-context",
+    )
+
+    assert response.status_code == 404
+
+    assert response.json() == {
+        "detail": "Security event not found",
+    }

@@ -97,32 +97,15 @@ def analyze_security_event_by_id(
         context=context,
     )
 
-
-def investigate_security_event_by_id(
+def build_security_investigation(
     db: Session,
-    event_id: int,
-) -> SecurityInvestigationResponse | None:
+    event: SecurityEvent,
+    analysis: SecurityAnalysisResponse,
+) -> SecurityInvestigationResponse:
     """
-    Build an analyst-oriented investigation for a
-    security event using deterministic analysis and
-    event correlation.
+    Build a security investigation from an existing
+    deterministic analysis result.
     """
-
-    event = get_event_by_id(
-        db=db,
-        event_id=event_id,
-    )
-
-    if event is None:
-        return None
-
-    analysis = analyze_security_event_by_id(
-        db=db,
-        event_id=event_id,
-    )
-
-    if analysis is None:
-        return None
 
     candidate_events = []
 
@@ -151,4 +134,37 @@ def investigate_security_event_by_id(
         event=event,
         analysis=analysis,
         related_events=related_events,
+    )
+
+
+def investigate_security_event_by_id(
+    db: Session,
+    event_id: int,
+) -> SecurityInvestigationResponse | None:
+    """
+    Build an analyst-oriented investigation for a
+    security event using deterministic analysis and
+    event correlation.
+    """
+
+    event = get_event_by_id(
+        db=db,
+        event_id=event_id,
+    )
+
+    if event is None:
+        return None
+
+    analysis = analyze_security_event_by_id(
+        db=db,
+        event_id=event_id,
+    )
+
+    if analysis is None:
+        return None
+
+    return build_security_investigation(
+        db=db,
+        event=event,
+        analysis=analysis,
     )

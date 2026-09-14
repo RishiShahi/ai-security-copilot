@@ -17,6 +17,12 @@ from app.services.security_event_service import (
 from app.schemas.investigation import (
     SecurityInvestigationResponse,
 )
+from app.schemas.ai_investigation import (
+    AIInvestigationContext,
+)
+from app.services.ai_context_service import (
+    build_ai_investigation_context_by_id,
+)
 
 router = APIRouter()
 
@@ -106,3 +112,25 @@ def investigate_event(
         )
 
     return investigation
+
+
+@router.get(
+    "/events/{event_id}/ai-context",
+    response_model=AIInvestigationContext,
+)
+def get_ai_investigation_context(
+    event_id: int,
+    db: Session = Depends(get_db),
+):
+    context = build_ai_investigation_context_by_id(
+        db=db,
+        event_id=event_id,
+    )
+
+    if context is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Security event not found",
+        )
+
+    return context
