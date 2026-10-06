@@ -34,6 +34,7 @@ class AIRiskAssessment(BaseModel):
 class AIInvestigationContext(BaseModel):
     event: AIInvestigationEvent
     risk_assessment: AIRiskAssessment
+    investigation_summary: str
     evidence: list[InvestigationEvidence]
     related_events: list[RelatedSecurityEvent]
     timeline: list[InvestigationTimelineEvent]

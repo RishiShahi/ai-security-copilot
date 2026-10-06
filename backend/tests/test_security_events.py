@@ -699,6 +699,12 @@ def test_get_ai_investigation_context(client):
         "authentication_attack"
     )
 
+    assert "investigation_summary" in data
+    assert isinstance(
+        data["investigation_summary"],
+        str,
+    )
+
     assert "risk_factors" in data["risk_assessment"]
     assert isinstance(
         data["risk_assessment"]["risk_factors"],

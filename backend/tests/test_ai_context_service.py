@@ -119,6 +119,10 @@ def test_build_ai_investigation_context():
     assert context.risk_assessment.threat_type == "brute_force"
     assert context.risk_assessment.risk_factors == [risk_factor]
 
+    assert context.investigation_summary == (
+        "High-risk brute-force activity detected."
+    )
+
     assert context.evidence == [evidence]
     assert context.related_events == [related_event]
     assert context.timeline == [timeline_event]
@@ -127,3 +131,65 @@ def test_build_ai_investigation_context():
     assert context.recommended_actions == [
         "Investigate the source IP."
     ]
+
+
+def test_build_ai_investigation_context_with_no_related_activity():
+    event = SecurityEvent(
+        id=1,
+        timestamp=datetime(2026, 9, 10, 10, 0, 0),
+        source="firewall",
+        event_type="failed_login",
+        severity="high",
+        source_ip="192.168.1.10",
+        username="admin",
+        message="Failed login attempt",
+        description="A failed login attempt was detected.",
+    )
+
+    risk_factor = RiskFactor(
+        factor="failed_login",
+        impact=10,
+        description="A failed login attempt was detected.",
+    )
+
+    analysis = SecurityAnalysisResponse(
+        event_id=1,
+        risk_score=50,
+        risk_level="medium",
+        threat_type="authentication_attack",
+        risk_factors=[risk_factor],
+        recommendation="Monitor the source IP.",
+    )
+
+    investigation = SecurityInvestigationResponse(
+        event_id=1,
+        summary="No significant related activity detected.",
+        risk_score=50,
+        risk_level="medium",
+        threat_type="authentication_attack",
+        evidence=[],
+        related_events=[],
+        timeline=[],
+        prioritized_events=[],
+        findings=[],
+        recommended_actions=[],
+    )
+
+    context = build_ai_investigation_context(
+        event=event,
+        analysis=analysis,
+        investigation=investigation,
+    )
+
+    assert context.event.event_id == 1
+    assert context.risk_assessment.risk_score == 50
+    assert context.investigation_summary == (
+        "No significant related activity detected."
+    )
+
+    assert context.evidence == []
+    assert context.related_events == []
+    assert context.timeline == []
+    assert context.prioritized_events == []
+    assert context.findings == []
+    assert context.recommended_actions == []    

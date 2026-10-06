@@ -54,6 +54,7 @@ def build_ai_investigation_context(
     return AIInvestigationContext(
         event=ai_event,
         risk_assessment=risk_assessment,
+        investigation_summary=investigation.summary,
         evidence=investigation.evidence,
         related_events=investigation.related_events,
         timeline=investigation.timeline,
